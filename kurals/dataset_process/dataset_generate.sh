@@ -1,0 +1,1 @@
+python kuralscw_processing.py --data-path cwr --save-path KuRALS_CW
