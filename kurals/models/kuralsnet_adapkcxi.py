@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from kurad.utils.correlation import Correlation
+from kurals.utils.correlation import Correlation
 
 
 class DoubleConvBlock(nn.Module):

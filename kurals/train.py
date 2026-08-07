@@ -13,6 +13,7 @@ from kurals.learners.model import Model
 from kurals.utils.distributed_utils import init_distributed_mode
 
 from kurals.models import KuRALSNet, KuRALSNet_WoASPP, KuRALSNet_ADA, KuRALSNet_PKC, KuRALSNet_AdaPKCTheta, KuRALSNet_AdaPKCXi
+from kurals.models import KuRALSNetNPUSeg
 from kurals.models import FCN8s, UNet, deeplabv3plus_resnet101, HRNet, RSSNet
 from kurals.models import SegFormer, Swin
 
@@ -74,6 +75,11 @@ def main():
                      n_frames=data['cfg']['nb_input_channels'],
                      dataset_type=data['cfg']['dataset'],
                      threshold=data['cfg']['threshold'])
+    elif cfg['model'] == 'kuralsnet_npu_seg':
+        net = KuRALSNetNPUSeg(n_classes=data['cfg']['nb_classes'],
+                     n_frames=data['cfg']['nb_input_channels'],
+                     dataset_type=data['cfg']['dataset'],
+                     bottleneck_ch=cfg.get('bottleneck_ch', 64))
     elif cfg['model'] == 'fcn8s':
         net = FCN8s(n_classes=data['cfg']['nb_classes'],
                     n_frames=data['cfg']['nb_input_channels'])
@@ -119,7 +125,7 @@ def main():
         net = torch.nn.parallel.DistributedDataParallel(net, device_ids=[args.gpu])
         net_without_ddp = net.module
     
-    if cfg['model'] in ['fcn8s', 'unet', 'deeplabv3plus', 'hrnet', 'rssnet', 'segformer', 'swin']:
+    if cfg['model'] in ['fcn8s', 'unet', 'deeplabv3plus', 'hrnet', 'rssnet', 'segformer', 'swin', 'kuralsnet_npu_seg']:
         Model(net, data).train(add_temp=False)
     else:
         Model(net, data).train(add_temp=True)

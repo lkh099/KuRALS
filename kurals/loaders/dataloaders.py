@@ -1,5 +1,6 @@
 """Classes to load Carrada dataset"""
 import os
+import re
 import numpy as np
 from skimage import transform
 from pathlib import Path
@@ -8,6 +9,15 @@ from torch.utils.data import DataLoader
 
 from kurals.loaders.dataset import KuRALS_CW
 from kurals.utils.paths import Paths
+
+_SCAN_NUM_RE = re.compile(r'MTD_Scan_(\d+)_')
+
+
+def _scan_num(frame_name):
+    """Extract the integer scan number from a 'MTD_Scan_<A>_<B>' frame name,
+    or None if it doesn't match (treated as non-contiguous by the caller)."""
+    m = _SCAN_NUM_RE.match(frame_name)
+    return int(m.group(1)) if m else None
 
 
 class SequenceDataset(Dataset):
@@ -50,6 +60,21 @@ class KuRALSDataset(Dataset):
         Default: False
     """
 
+    # A window of n_frames consecutive *list positions* is not guaranteed to be
+    # n_frames consecutive *scan* numbers -- light_dataset_frame_oriented.json's
+    # per-sequence frame lists are not always scan-sorted/contiguous (confirmed
+    # by manually inspecting box annotations at several large-gap points, e.g.
+    # the airport sequence's train-split concatenation seam pairs scan 100
+    # (class 2, near range-doppler bin [41,264]) directly with scan 139 (class
+    # 3, near bin [6,391]) -- two unrelated targets, not consecutive frames).
+    # MAX_SCAN_GAP=6 comes from the corpus-wide histogram of consecutive-pair
+    # scan-number deltas across all 9 sequences: gaps of 0/1/2-6 account for
+    # ~2563 of ~2577 pairs, then a hard cliff straight to 10/14/20/22/27/42/82
+    # (and a handful of large negative deltas at a few sequences' own list
+    # starts). Only matters once n_frames > 1 (single-frame windows have no
+    # adjacency to violate).
+    MAX_SCAN_GAP = 6
+
     def __init__(self, dataset, annotation_type, path_to_frames, process_signal,
                  n_frames, transformations=None, add_temp=False):
         self.dataset = dataset
@@ -60,6 +85,20 @@ class KuRALSDataset(Dataset):
         self.transformations = transformations
         self.add_temp = add_temp
         self.path_to_annots = self.path_to_frames / 'annotations' / self.annotation_type
+
+        if self.n_frames > 1:
+            self.valid_indices = [
+                start for start in range(len(self.dataset) - self.n_frames + 1)
+                if all(
+                    _scan_num(self.dataset[start + k][0]) is not None
+                    and _scan_num(self.dataset[start + k + 1][0]) is not None
+                    and abs(_scan_num(self.dataset[start + k + 1][0])
+                            - _scan_num(self.dataset[start + k][0])) <= self.MAX_SCAN_GAP
+                    for k in range(self.n_frames - 1)
+                )
+            ]
+        else:
+            self.valid_indices = list(range(len(self.dataset)))
 
     def transform(self, frame, is_vflip=False, is_hflip=False):
         """
@@ -97,10 +136,11 @@ class KuRALSDataset(Dataset):
         return frame
 
     def __len__(self):
-        """Number of frames per sequence"""
-        return len(self.dataset[self.n_frames-1:])
+        """Number of scan-contiguous windows per sequence (see valid_indices)"""
+        return len(self.valid_indices)
 
     def __getitem__(self, idx):
+        idx = self.valid_indices[idx]
         init_frame_name = self.dataset[idx+self.n_frames-1][0]
         frame_names = [self.dataset[f_id][0] for f_id in range(idx, idx+self.n_frames)]
         rd_matrices = list()

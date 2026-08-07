@@ -63,6 +63,13 @@ class Model(nn.Module):
         self.device = self.cfg['device']
         self.distributed = self.cfg['distributed']
         self.num_workers = self.cfg['num_workers']
+        # QAT recipe (see kurals/learners/model_detect.py's identical fields for the
+        # full rationale): only meaningful for models that implement
+        # set_quant_enabled/freeze_observers (currently just KuRALSNetNPUSeg) -- a
+        # complete no-op for every other model registered through this shared
+        # class, since none of them define those methods.
+        self.quant_warmup_iters = self.cfg.get('quant_warmup_iters', None)
+        self.quant_freeze_iters = self.cfg.get('quant_freeze_iters', None)
         self.rank = get_rank()
         if self.rank == 0:
             self.writer = SummaryWriter(self.paths['writer'])
@@ -156,10 +163,20 @@ class Model(nn.Module):
                                               num_workers=self.num_workers,
                                               worker_init_fn=partial(worker_init_fn, rank=get_rank(), seed=self.numpy_seed))
                 for _, frame in enumerate(frame_dataloader):
+                    if hasattr(self.net, 'set_quant_enabled'):
+                        if self.quant_warmup_iters is not None and iteration == self.quant_warmup_iters:
+                            self.net.set_quant_enabled(True)
+                            if self.rank == 0:
+                                print(f'[iter {iteration}] QAT enabled (float warm-up done)')
+                        if self.quant_freeze_iters is not None and iteration == self.quant_freeze_iters:
+                            self.net.freeze_observers()
+                            if self.rank == 0:
+                                print(f'[iter {iteration}] quantization observers frozen')
+
                     rd_data = frame['rd_matrix'].to(self.device).float()
                     rd_mask = frame['rd_mask'].to(self.device).float()
                     rd_data = normalize(rd_data, self.dataset, 'range_doppler', norm_type=self.norm_type)
-                    
+
                     optimizer.zero_grad()
                     
                     rd_outputs = self.net(rd_data)
@@ -289,6 +306,14 @@ class Model(nn.Module):
                                 self._save_results(name_result)
                                 flag_save = False
                                 name_result = []
+                            # Unconditional latest-epoch checkpoint, separate from the
+                            # best-by-dice val_doppler/test_doppler saves above -- those
+                            # only fire on a new all-time-high dice, so a run whose QAT-
+                            # active phase never beats an earlier (possibly pre-QAT
+                            # float32, i.e. non-deployable) high-water mark leaves nothing
+                            # recoverable on disk once the process exits. Overwritten every
+                            # validation step so it always reflects the most recent state.
+                            self._save_results(['latest'])
                         self.net.train()  # Train mode after evaluation process
                     iteration += 1
         
@@ -313,7 +338,8 @@ class Model(nn.Module):
             model_path = self.paths['results'] / (name + '_' + 'model.pt')
             with open(results_path, "w") as fp:
                 json.dump(self.results, fp)
-            torch.save(self.net.module.state_dict(), model_path)
+            net = self.net.module if hasattr(self.net, 'module') else self.net
+            torch.save(net.state_dict(), model_path)
 
     def _set_seeds(self):
         torch.cuda.manual_seed_all(self.torch_seed)

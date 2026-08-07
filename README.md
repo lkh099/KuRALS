@@ -1,10 +1,6 @@
 # KuRALS: Ku-Band Radar Datasets for Multi-Scene Long-Range Surveillance with Baselines and Loss Design
 
-## Updates
-
-- 12/2025 The KuRALS dataset and the associated data-processing code are publicly released.
-
-## Introductions of KuRALS dataset
+## Introduction to the KuRALS dataset
 
 KuRALS is a range-Doppler (RD)-level radar surveillance dataset designed for learning-based long-range detection of moving targets. The dataset covers aerial (unmanned aerial vehicles), land (pedestrians and cars) and maritime (boats) scenarios. It is real-measured by two long-range Kurz-under (Ku) band radars and contains two subsets (KuRALS-CW and KuRALS-PD). It consists of RD spectrograms with pixel-wise annotations of categories, velocity and range coordinates, and the azimuth and elevation angles are also provided.
 
@@ -57,58 +53,40 @@ Additional information about each target, such as azimuth, elevation and energy,
 This repository provides a complete end-to-end pipeline for the KuRALS dataset, covering data processing, label generation and algorithm validation. Specifically, it includes:
 - Processing complex-valued RD data to generate RD inputs for model training;
 - Automatic label refinement and generation by jointly leveraging CFAR, NMS and related techniques;
-- Implementations of multiple models along with their corresponding training configurations;
+- Implementations of multiple baseline segmentation models (`kuralsnet` and variants, FCN8s, U-Net, DeepLabv3+, HRNet, RSSNet, SegFormer, Swin Transformer) along with their training configurations;
 - Implementations of different loss functions;
-- Training and evaluation scripts.
+- `KuRALSNetNPUSeg`: an NPU-legal (128-MAC-array-deployable) segmentation model with quantization-aware training and an int8 export pipeline;
+- A Kalman-filter + Hungarian-assignment multi-target tracker built on top of the NPU model's per-frame detections.
+
+See [`docs/USAGE.md`](docs/USAGE.md) for how to train, evaluate, run the tracker demo, and export a model for NPU deployment. See [`CLAUDE.md`](CLAUDE.md) for a summary of the current model status and what's been tried and ruled out.
 
 ## Installation
 
-We provide instructions on how to install dependencies via conda and pip:
+This project runs from a plain Python virtualenv (not conda), on Python 3.10 with torch 2.3.1+cu121 / torchvision 0.18.1+cu121 -- the versions this codebase is actually developed and tested against.
 
-1. Create and activate a new conda environment:
+1. Clone this repository and bootstrap the environment:
 ```bash
-$ conda create -n kurals python=3.8
-$ conda activate kurals
-```
-
-2. Git clone this repository and install it using pip:
-```bash
-$ git clone https://github.com/lihua199710/KuRALS
+$ git clone https://github.com/lkh099/KuRALS
 $ cd KuRALS/
-$ pip install -e .
+$ bash scripts/setup_env.sh          # creates .venv/, installs torch (cu121) + requirements.txt + this package (editable)
+$ source .venv/bin/activate
 ```
-With this, you can edit the KuRALS code on the fly and import function and classes of KuRALS in other projects as well.
+If your GPU/driver needs a different CUDA build, edit the `--index-url` in `scripts/setup_env.sh` (see [pytorch.org/get-started/previous-versions](https://pytorch.org/get-started/previous-versions/)).
 
-3. Install pytorch using conda.
-```bash
-$ conda install pytorch==1.10.1 torchvision==0.11.2 torchaudio==0.10.1 cudatoolkit=11.3 -c pytorch -c conda-forge
-```
-
-4. (Optional) Install correlation package for the usage of KuRALS-Net w/ $\text{AdaPKC}^{\xi}$: First assign the python path of the `kurals` conda environment, such as `home/miniconda/envs/kurals/include/python3.8`, to `include_dirs` in [kurals/correlation/setup.py](./kurals/correlation/setup.py). Then run the following command lines:
+2. (Optional) Build the `correlation` CUDA extension, only needed for the `kuralsnet_adapkcxi` baseline variant (unrelated to the NPU/tracker work):
 ```bash
 $ pip install ninja
 $ cd kurals/correlation
 $ python setup.py install
 ```
+Assign your venv's Python include path (e.g. `.venv/lib/python3.10/site-packages` or the interpreter's own include dir) to `include_dirs` in `kurals/correlation/setup.py` first if the build fails to find `Python.h`.
 
-5. Install other dependencies using pip.
-```bash
-$ pip install -r requirements.txt
-```
-
-6. (Optional) To uninstall this package, run:
-```bash
-$ pip uninstall kurals
-```
-
-## Usage
-
-In any case, it is **mandatory** to specify beforehand both the path where the Radar dataset is located and the path to store the logs and models. For example: I put the Ku-band Radar folder in /home/datasets_local, the path I should specify is /home/datasets_local. The same way if I store my logs in /home/logs. Please run the following command lines while adapting the paths to your settings:
-
+3. Point the repo at your dataset and log directories:
 ```bash
 $ cd kurals/utils/
-$ python set_paths.py --cwr /home/datasets_local/KuRALS_CW --pdr /home/datasets_local/KuRALS_PD --logs /home/logs
+$ python set_paths.py --cwr /path/to/KuRALS_CW --pdr /path/to/KuRALS_PD --logs /path/to/logs
 ```
+This writes `kurals/config_files/config.ini`, which every training/eval script reads.
 
 ### Prepare the KuRALS dataset
 
@@ -128,66 +106,6 @@ After completing the above two steps, the dataset can be generated by executing:
 ```bash
 $ cd kurals/dataset_process/
 $ bash dataset_generate.sh
-```
-
-### Training
-
-#### 1. Model Specification
-
-To train a model, a JSON configuration file must be specified. We provide configuration files for KuRALS-Net and its related variants, as listed below:
-- `kurals/config_files/kuralsnet.json`: KuRALS-Net
-- `kurals/config_files/kuralsnet_woaspp.json`: KuRALS-Net without the ASPP module
-- `kurals/config_files/kuralsnet_ada.json`: KuRALS-Net with the ADA module (from TransRadar)
-- `kurals/config_files/kuralsnet_pkc.json`: KuRALS-Net with the PKC module
-- `kurals/config_files/kuralsnet_adapkcxi.json`: KuRALS-Net with the AdaPKC-Xi module
-- `kurals/config_files/kuralsnet_adapkctheta.json`: KuRALS-Net with the AdaPKC-Theta module
-
-In addition, we also provide configuration files for other architectures, including FCN8s, U-Net, DeepLabv3+, HRNet, RSSNet, SegFormer and Swin Transformer. 
-
-#### 2. Training Loss Specification
-
-We provide multiple loss functions, including CE loss, weighted CE (wCE) loss, Focal loss, Dice loss, Generalized Dice loss and NBS loss. The desired loss function can be selected by setting the `custom_loss` variable in the above model configuration file. The corresponding mapping is defined in the `define_loss` function in `kurals/utils/functions.py`.
-
-#### 3. Dataset Specification
-
-The supported datasets include KuRALS-CW and KuRALS-PD. Different datasets can be selected by passing the `--dataset` argument in the training script [train.sh](./kurals/train.sh).
-
-#### 4. Training Execution
-
-For example, to train the KuRALS-Net architecture with the $\text{NBS}^{1}$ loss on the KuRALS-CW dataset, please run the following command lines:
-
-```bash
-$ cd KuRALS/kurals
-$ bash train.sh
-```
-
-### Testing
-
-To test a recorded model, you should specify the configuration file and the path of model weights. For example, if you want to test the KuRALS-Net model and the model weights have been saved to `KuRALS/test_results/kuralsnet_cw.pt`, you should assign this path to `--model-path` in [test.sh](./kurals/test.sh). This way, you should execute the following command lines:
-
-```bash
-$ cd KuRALS/kurals
-$ bash test.sh
-```
-
-As a reference, we provide pretrained KuRALS-Net model weights trained with the NBS loss on the KuRALS-CW and KuRALS-PD datasets. The corresponding checkpoints can be found at `test_results/kuralsnet_cw.pt` and `test_results/kuralsnet_pd.pt`, respectively.
-
-### More Evaluations
-
-#### Computational Complexity and Runtime
-
-The computational complexity, GPU memory consumption and inference speed of different models can be evaluated by running the following script:
-```bash
-$ cd KuRALS/kurals
-$ bash flops_fps.sh
-```
-
-#### Comparision with CFAR
-
-The foreground–background segmentation performance of CFAR on the KuRALS-CW or KuRALS-PD datasets can be evaluated by running the following script:
-```bash
-$ cd KuRALS/kurals
-$ bash test_cfar.sh
 ```
 
 ## Acknowledgements

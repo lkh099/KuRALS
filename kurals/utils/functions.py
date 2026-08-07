@@ -251,6 +251,24 @@ def define_loss(dataset_type, signal_type, custom_loss, device):
     elif custom_loss == 'nbs1':
         nbsloss = NBSLoss(weight=None, threshold=threshold_nbs, degree=1, num_classes=num_classes, gamma=1)
         loss = [nbsloss, lambda x, y: torch.tensor(0., device=x.device)]
+    elif custom_loss == 'nbs1_wce':
+        # Same NBS1 recalibration as 'nbs1' (noisy/hard-background suppression),
+        # but the underlying per-pixel CE is class-weighted using this dataset's
+        # own precomputed inverse-frequency weights (get_class_weights ->
+        # config_files/cwr_rd_weights.json for KuRALS_CW: Background~1e-6,
+        # UAV~0.051, Pedestrian~0.083, Vehicle~0.866) instead of NBSLoss's
+        # default weight=None. Every other custom_loss option that wants class
+        # weighting already uses this exact weight source (see 'wce',
+        # 'wce_w10sdice', 'wfocal_w*sdice' above) -- 'nbs1'/'nbs2' were the only
+        # NBS variants that never combined it with NBS's own background
+        # suppression mechanism, even though the two address different problems
+        # (NBS discounts *hard* background pixels regardless of class; the
+        # weights address the *class imbalance* baked into the CE loss itself)
+        # and are not redundant.
+        weights = get_class_weights(dataset_type, signal_type)
+        nbsloss = NBSLoss(weight=weights.to(device).float(), threshold=threshold_nbs, degree=1,
+                           num_classes=num_classes, gamma=1)
+        loss = [nbsloss, lambda x, y: torch.tensor(0., device=x.device)]
     elif custom_loss == 'nbs2':
         nbsloss = NBSLoss(weight=None, threshold=threshold_nbs, degree=2, num_classes=num_classes, gamma=1)
         loss = [nbsloss, lambda x, y: torch.tensor(0., device=x.device)]
