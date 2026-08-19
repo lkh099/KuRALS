@@ -108,6 +108,8 @@ $ cd kurals/dataset_process/
 $ bash dataset_generate.sh
 ```
 
+To target a deployment SoC with a smaller fixed RD buffer than the native `(124, 2048)`, `kuralscw_processing.py` supports `--doppler-bins`/`--range-bins`: it block max-pools the RD map (and remaps target mask coordinates through the same bins) down to the given size at generation time, rather than resizing already-processed `.npy` files after the fact. See the commented example in `dataset_generate.sh`.
+
 ## Acknowledgements
 - We thank the authors of [MVRSS](https://arxiv.org/abs/2103.16214) for providing the basic codebase upon which part of this repository is built.
 - Users of this dataset are kindly requested to acknowledge that the data were collected by the Intelligent Science and Technology Academy of CASIC.

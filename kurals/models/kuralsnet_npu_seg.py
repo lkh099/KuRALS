@@ -76,12 +76,13 @@ class KuRALSNetNPUSeg(nn.Module):
     STRIDE = 2
     ALIGN = 8
 
-    def __init__(self, n_classes, n_frames, dataset_type='KuRALS_CW', bottleneck_ch=64):
+    def __init__(self, n_classes, n_frames, dataset_type='KuRALS_CW', bottleneck_ch=64, shallow_encoder=False):
         super().__init__()
         self.n_classes = n_classes
         self.n_frames = n_frames
         self.stride = self.STRIDE
         self.align = self.ALIGN
+        self.shallow_encoder = shallow_encoder
         bc = bottleneck_ch
 
         # --- Encoder: identical to KuRALSNetNPU (kuralsnet_npu.py) ---
@@ -89,15 +90,18 @@ class KuRALSNetNPUSeg(nn.Module):
         self.stageA = DepthwiseSeparableBlock(16, 32, act='leaky')                # /2 -> Skip (32ch)
 
         self.down1 = DepthwiseSeparableBlock(32, 64, act='leaky', stride=2)       # /2 -> /4
-        self.down2 = DepthwiseSeparableBlock(64, bc, act='leaky', stride=2)       # /4 -> /8
+        # shallow_encoder=True drops this stage's stride (/4 -> /4 instead of /4 -> /8) --
+        # for inputs already tiny enough that /8 leaves near-zero bottleneck spatial extent
+        # (e.g. an 8-wide axis -> 1 at /8). upconv_b's upsample is dropped to match (below).
+        self.down2 = DepthwiseSeparableBlock(64, bc, act='leaky', stride=1 if shallow_encoder else 2)
 
         # --- Bottleneck: identical to KuRALSNetNPU when bottleneck_ch=64 ---
         self.bott_c = ResidualDWSeparableBlock(bc, act='leaky', dw_kernel_size=5)
         self.bott_d1 = ResidualDWSeparableBlock(bc, act='leaky', dw_kernel_size=5)
-        self.bott_d2 = ResidualDWSeparableBlock(bc, act='leaky', dw_kernel_size=5)  # /8 -> P_deep
+        self.bott_d2 = ResidualDWSeparableBlock(bc, act='leaky', dw_kernel_size=5)  # /8 (or /4 if shallow_encoder) -> P_deep
 
         # --- Decoder: identical to KuRALSNetNPU through dec_a (/2, 24ch) ---
-        self.upconv_b = DepthwiseSeparableBlock(bc, 32, act='leaky')   # /8 -> /4 (fused upsample), no concat
+        self.upconv_b = DepthwiseSeparableBlock(bc, 32, act='leaky')   # /8 -> /4 (fused upsample), no concat -- plain conv, no upsample, if shallow_encoder
         self.refine_b = DepthwiseSeparableBlock(32, 32, act='leaky')   # /4, plain refine
 
         self.upconv_a = DepthwiseSeparableBlock(32, 32, act='leaky')   # /4 -> /2 (fused upsample)
@@ -163,8 +167,9 @@ class KuRALSNetNPUSeg(nn.Module):
         p_deep = self.bott_d2(x)          # /8, 64ch (eltwise-add residual)
 
         # --- Decoder ---
-        u = self.upconv_b(p_deep)                              # /8, 32ch
-        u = F.interpolate(u, scale_factor=2, mode='nearest')   # fused onto upconv_b.pw -- /4, 32ch
+        u = self.upconv_b(p_deep)                              # /8 (or /4 if shallow_encoder), 32ch
+        if not self.shallow_encoder:
+            u = F.interpolate(u, scale_factor=2, mode='nearest')   # fused onto upconv_b.pw -- /4, 32ch
         u = self.refine_b(u)                                   # /4, 32ch, plain refine (no concat)
 
         u = self.upconv_a.dw(u)

@@ -30,7 +30,8 @@ def load_segmentation_model(cfg, model_path, device, quant_mode='auto'):
     the quantized (int8-simulated) forward path is active.
     """
     net = KuRALSNetNPUSeg(n_classes=cfg['nb_classes'], n_frames=cfg['nb_input_channels'],
-                           dataset_type=cfg['dataset'], bottleneck_ch=cfg.get('bottleneck_ch', 64))
+                           dataset_type=cfg['dataset'], bottleneck_ch=cfg.get('bottleneck_ch', 64),
+                           shallow_encoder=cfg.get('shallow_encoder', False))
     checkpoint = torch.load(model_path, map_location=device)
     state_dict = checkpoint['net'] if isinstance(checkpoint, dict) and 'net' in checkpoint else checkpoint
     net.load_state_dict(state_dict)
