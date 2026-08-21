@@ -50,6 +50,37 @@ python test_class_discrimination.py \
     --dataset KuRALS_CW --split Test
 ```
 
+## SoC 8x64 buffer dataset
+
+The 8x64-buffer branch (see `CLAUDE.md`) trains against a block-max-pooled emulation of
+a smaller deployment RD buffer, not the repo's native 124x2048 resolution. Neither the
+native nor the 8x64 dataset is committed to this repo (`.gitignore` excludes `*.npy`),
+so regenerate the 8x64 one from a native-resolution extracted dataset (produced by
+`kuralscw_processing.py` from raw `.mat` data):
+
+```bash
+python -m kurals.dataset_process.resize_extracted_dataset \
+    --src /path/to/native/KuRALS_CW --dst /path/to/KuRALS_CW_8x64/KuRALS_CW \
+    --doppler-bins 8 --range-bins 64
+```
+
+Then point `config.ini` at the new dataset root:
+
+```bash
+python kurals/utils/set_paths.py --cwr /path/to/KuRALS_CW_8x64/KuRALS_CW --pdr /path/to/KuRALS_PD --logs /path/to/logs
+```
+
+Train the current best 8x64 result the same way as the native model, but with the
+8x64-specific config and `--finetune` from a native checkpoint (partial-transfer init
+via `expand_kernel3.py`, since the bottleneck's kernel size differs between the native
+and 8x64 configs):
+
+```bash
+python expand_kernel3.py --ckpt /path/to/native/val_doppler_model.pt --out native_ckpt_kernel3_init.pt
+python train.py --cfg config_files/kuralsnet_npu_seg_8x64_kernel3_finetune_dropout.json \
+    --dataset KuRALS_CW --finetune native_ckpt_kernel3_init.pt
+```
+
 ## Tracker demo
 
 `demo_tracker.py` runs a trained `kuralsnet_npu_seg` checkpoint over one real recorded sequence, extracts per-frame UAV blob centroids (`scipy.ndimage.label`/`center_of_mass`), tracks them with a constant-velocity Kalman filter + Hungarian assignment (`kurals/utils/tracker.py`), and renders an annotated GIF:

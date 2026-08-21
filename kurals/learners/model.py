@@ -45,6 +45,8 @@ class Model(nn.Module):
         self.batch_size = self.cfg['batch_size']
         self.nb_epochs = self.cfg['nb_epochs']
         self.lr = self.cfg['lr']
+        self.weight_decay = self.cfg.get('weight_decay', 0)
+        self.grad_clip_norm = self.cfg.get('grad_clip_norm', None)
         self.lr_step = self.cfg['lr_step']
         self.schedular_type = self.cfg['schedular']
         self.T_max = self.cfg['Tmax']
@@ -95,12 +97,17 @@ class Model(nn.Module):
         train_loader, val_loader, test_loader = self.dataloaders
         transformations = get_transformations(self.transform_names,
                                               sizes=(self.w_size, self.h_size))
-        rd_criterion = define_loss(self.dataset, 'range_doppler', self.custom_loss, self.device)
+        rd_criterion = define_loss(self.dataset, 'range_doppler', self.custom_loss, self.device,
+                                    label_smoothing=self.cfg.get('label_smoothing', 0))
         nb_losses = len(rd_criterion)
         running_losses = list()
         rd_running_losses = list()
         rd_running_global_losses = [list(), list()]
-        optimizer = optim.Adam(self.net.parameters(), lr=self.lr)
+        # AdamW, not Adam(weight_decay=...): Adam's built-in decay is coupled with its
+        # adaptive per-parameter LR, which is known to be a weaker regularizer than AdamW's
+        # decoupled decay (Loshchilov & Hutter, 2019). Defaults to 0 (Adam-equivalent) when
+        # a config doesn't set weight_decay, so this is a no-op for every existing config.
+        optimizer = optim.AdamW(self.net.parameters(), lr=self.lr, weight_decay=self.weight_decay)
         # lt @20230417
         if self.schedular_type == 'exp':
             scheduler = ExponentialLR(optimizer, gamma=0.9)
@@ -150,8 +157,9 @@ class Model(nn.Module):
                                                 self.process_signal,
                                                 self.n_frames,
                                                 transformations,
-                                                add_temp)
-                
+                                                add_temp,
+                                                flip_expand=self.cfg.get('flip_expand', False))
+
                 if self.distributed:
                     sampler_train = torch.utils.data.distributed.DistributedSampler(kurals_dataset)
                     sampler_train.set_epoch(epoch)
@@ -192,6 +200,8 @@ class Model(nn.Module):
                     loss_reduced = reduce_value(loss)
                     
                     loss.backward()
+                    if self.grad_clip_norm is not None:
+                        torch.nn.utils.clip_grad_norm_(self.net.parameters(), self.grad_clip_norm)
                     optimizer.step()
             
                     if self.rank == 0:

@@ -76,7 +76,8 @@ class KuRALSNetNPUSeg(nn.Module):
     STRIDE = 2
     ALIGN = 8
 
-    def __init__(self, n_classes, n_frames, dataset_type='KuRALS_CW', bottleneck_ch=64, shallow_encoder=False):
+    def __init__(self, n_classes, n_frames, dataset_type='KuRALS_CW', bottleneck_ch=64, shallow_encoder=False,
+                 bottleneck_kernel_size=5, dropout_rate=0):
         super().__init__()
         self.n_classes = n_classes
         self.n_frames = n_frames
@@ -84,6 +85,12 @@ class KuRALSNetNPUSeg(nn.Module):
         self.align = self.ALIGN
         self.shallow_encoder = shallow_encoder
         bc = bottleneck_ch
+        # Whole-channel dropout on the bottleneck's output -- the most overfitting-prone
+        # stage (smallest spatial extent, so fewest independent samples per BatchNorm
+        # channel). Identity at eval (net.eval() disables Dropout automatically), so this
+        # never appears in the exported/deployed NPU graph -- unlike BatchNorm, no folding
+        # needed since it's simply absent at inference.
+        self.bott_dropout = nn.Dropout2d(p=dropout_rate)
 
         # --- Encoder: identical to KuRALSNetNPU (kuralsnet_npu.py) ---
         self.stem = DepthwiseSeparableBlock(n_frames, 16, act='leaky', stride=2)  # /1 -> /2
@@ -95,10 +102,14 @@ class KuRALSNetNPUSeg(nn.Module):
         # (e.g. an 8-wide axis -> 1 at /8). upconv_b's upsample is dropped to match (below).
         self.down2 = DepthwiseSeparableBlock(64, bc, act='leaky', stride=1 if shallow_encoder else 2)
 
-        # --- Bottleneck: identical to KuRALSNetNPU when bottleneck_ch=64 ---
-        self.bott_c = ResidualDWSeparableBlock(bc, act='leaky', dw_kernel_size=5)
-        self.bott_d1 = ResidualDWSeparableBlock(bc, act='leaky', dw_kernel_size=5)
-        self.bott_d2 = ResidualDWSeparableBlock(bc, act='leaky', dw_kernel_size=5)  # /8 (or /4 if shallow_encoder) -> P_deep
+        # --- Bottleneck: identical to KuRALSNetNPU when bottleneck_ch=64, bottleneck_kernel_size=5 ---
+        # bottleneck_kernel_size default 5 was tuned for the /8-resolution bottleneck's spatial
+        # extent; for tiny inputs where the bottleneck is only a few cells wide (e.g. shallow_encoder
+        # or a small SoC RD buffer), a 5-wide depthwise kernel mostly convolves over padding -- pass 3.
+        bk = bottleneck_kernel_size
+        self.bott_c = ResidualDWSeparableBlock(bc, act='leaky', dw_kernel_size=bk)
+        self.bott_d1 = ResidualDWSeparableBlock(bc, act='leaky', dw_kernel_size=bk)
+        self.bott_d2 = ResidualDWSeparableBlock(bc, act='leaky', dw_kernel_size=bk)  # /8 (or /4 if shallow_encoder) -> P_deep
 
         # --- Decoder: identical to KuRALSNetNPU through dec_a (/2, 24ch) ---
         self.upconv_b = DepthwiseSeparableBlock(bc, 32, act='leaky')   # /8 -> /4 (fused upsample), no concat -- plain conv, no upsample, if shallow_encoder
@@ -165,6 +176,7 @@ class KuRALSNetNPUSeg(nn.Module):
         x = self.bott_c(x)                # /8, 64ch (eltwise-add residual)
         x = self.bott_d1(x)               # /8, 64ch (eltwise-add residual)
         p_deep = self.bott_d2(x)          # /8, 64ch (eltwise-add residual)
+        p_deep = self.bott_dropout(p_deep)  # train-only whole-channel dropout, identity at eval
 
         # --- Decoder ---
         u = self.upconv_b(p_deep)                              # /8 (or /4 if shallow_encoder), 32ch

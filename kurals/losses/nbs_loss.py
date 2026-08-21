@@ -5,8 +5,8 @@ from .one_hot import one_hot
 # Noisy Background Suppression Loss
 class NBSLoss(nn.Module):
 
-    def __init__(self, weight=None, global_weight = 1., reduction='mean', threshold=0.05, degree=2, 
-                 num_classes=4, gamma=1, eps=1e-7):
+    def __init__(self, weight=None, global_weight = 1., reduction='mean', threshold=0.05, degree=2,
+                 num_classes=4, gamma=1, eps=1e-7, label_smoothing=0):
         super(NBSLoss, self).__init__()
         self.global_weight = global_weight
         self.reduction = reduction
@@ -15,7 +15,7 @@ class NBSLoss(nn.Module):
         self.num_classes = num_classes
         self.gamma = gamma
         self.eps = eps
-        self.ce = torch.nn.CrossEntropyLoss(weight=weight, reduction='none')
+        self.ce = torch.nn.CrossEntropyLoss(weight=weight, reduction='none', label_smoothing=label_smoothing)
 
     def forward(self, input, target):
         """

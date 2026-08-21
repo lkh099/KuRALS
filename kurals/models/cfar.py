@@ -278,6 +278,20 @@ class CFAR2D_Parallel():
         threshold = self.get_threshold(x_r)
         # print('threshold: ', threshold)
         return (x >= self.alpha * threshold).int()
+
+    def get_scr(self, x, eps=1e-8):
+        """Continuous signal-to-clutter ratio x / local_noise_floor, instead of filter()'s
+        hard alpha-thresholded binary decision -- the local noise-floor estimate (get_threshold)
+        already exists per-pixel inside filter(), this just returns the ratio instead of
+        discarding it. Used to contrast-normalize a native-resolution RD map before downsampling,
+        so pooling doesn't inflate background bins' peaks as much as raw magnitude does (see
+        kurals/dataset_process/cfar_normalize_dataset.py)."""
+        b, c, h, w = x.shape
+        p_r = self._get_p_r(b, h, w, self.N)
+        x_pad = self.zero_padding(x)
+        x_r = self._sample_x(x_pad, p_r, self.N)
+        threshold = self.get_threshold(x_r)
+        return x / (threshold + eps)
     
     # generating peak receptive field grid
     def _get_cfar_prf_grid(self, rb, gb, N):

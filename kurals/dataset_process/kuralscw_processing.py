@@ -36,6 +36,33 @@ def resize_rd(data, doppler_bins, range_bins):
     return pooled
 
 
+def resize_rd_kth(data, doppler_bins, range_bins, k):
+    """Like resize_rd, but each output cell takes the k-th largest value within its
+    native block instead of the max (k=1 reduces to resize_rd). Targets a specific
+    failure mode of max-pooling: the max of ~500 native pixels is an order statistic
+    that grows with block size even for pure background/clutter (measured: median
+    target-vs-background contrast collapses 19.4x -> 6.7x after max-pooling), because
+    a single random elevated pixel is enough to win. A real target's native dense
+    box is a *cluster* of ~9 correlated elevated pixels, not one spike, so its k-th
+    largest value (for modest k) stays close to the true peak; a background block's
+    k-th largest requires k coincidentally-elevated pixels, which is much less likely
+    than needing just one -- suppressing the single-spike inflation without CFAR's
+    dynamic-range compression (this stays in raw magnitude, no normalization).
+
+    Not separable across axes the way max is (max-of-maxes equals the true max, but
+    k-th-largest-of-row-k-ths does not equal the true 2D k-th-largest) -- operates on
+    the full 2D block directly."""
+    doppler_groups = _bin_groups(data.shape[0], doppler_bins)
+    range_groups = _bin_groups(data.shape[1], range_bins)
+    pooled = np.empty((doppler_bins, range_bins))
+    for i, dg in enumerate(doppler_groups):
+        for j, rg in enumerate(range_groups):
+            block = data[np.ix_(dg, rg)].ravel()
+            kk = min(k, block.size)
+            pooled[i, j] = np.partition(block, -kk)[-kk]
+    return pooled
+
+
 def data_loader(data, seq_name, period, save_path, doppler_bins=None, range_bins=None):
     index_list = np.where(data['MTD_Scan']['tgtlD'][0][0][0] != 0)
 
@@ -110,7 +137,7 @@ def get_onehot(data, label=None, points=None):
             data[0][point[0]][point[1]] = 0
     return data
 
-def get_mask(data, seq_name, frame, save_path, doppler_bins=None, range_bins=None):
+def get_mask(data, seq_name, frame, save_path, doppler_bins=None, range_bins=None, dilate_radius=0):
     annotations_path = os.path.join(save_path, seq_name, 'annotations')
     out_doppler = doppler_bins or NATIVE_DOPPLER_BINS
     out_range = range_bins or NATIVE_RANGE_BINS
@@ -135,7 +162,14 @@ def get_mask(data, seq_name, frame, save_path, doppler_bins=None, range_bins=Non
             for x, y in dense_points:
                 x = doppler_lookup[np.clip(int(x), 0, NATIVE_DOPPLER_BINS - 1)] if doppler_lookup is not None else int(x)
                 y = range_lookup[np.clip(int(y), 0, NATIVE_RANGE_BINS - 1)] if range_lookup is not None else int(y)
-                remapped.add((x, y))
+                # dilate_radius>0: mark a neighborhood around the remapped cell too, since
+                # aggressive downsampling collapses the native 3x3 box to 1-2 output cells --
+                # see resize_extracted_dataset.py's resize_mask docstring for the full rationale.
+                for dx in range(-dilate_radius, dilate_radius + 1):
+                    for dy in range(-dilate_radius, dilate_radius + 1):
+                        xc, yc = x + dx, y + dy
+                        if 0 <= xc < out_doppler and 0 <= yc < out_range:
+                            remapped.add((xc, yc))
             dense_points = list(remapped)
 
         if seq_name == '2020年11月29日11时29分55秒_mtd_机场人车_true':
@@ -152,7 +186,7 @@ def get_mask(data, seq_name, frame, save_path, doppler_bins=None, range_bins=Non
             os.makedirs(save)
         np.save(os.path.join(save, 'range_doppler.npy'), dense_annotations)
 
-def mask_generate(data_path, save_path, doppler_bins=None, range_bins=None):
+def mask_generate(data_path, save_path, doppler_bins=None, range_bins=None, dilate_radius=0):
     print('***** Step 2/3: Generate mask label *****')
     with open(os.path.join(data_path, 'sequence.txt'), 'r', encoding='utf-8') as fp:
         seq_names = fp.readlines()
@@ -165,7 +199,7 @@ def mask_generate(data_path, save_path, doppler_bins=None, range_bins=None):
         for cw_data in cw_data_list:
             frame = cw_data.split('\\')[-1].split('.')[0]
             data = sio.loadmat(cw_data)
-            get_mask(data, seq_name, frame, save_path, doppler_bins, range_bins)
+            get_mask(data, seq_name, frame, save_path, doppler_bins, range_bins, dilate_radius)
 
 def annojson_genetate(data_path, save_path):
     print('***** Step 3/3: Generate annotation json file *****')
@@ -241,12 +275,16 @@ if __name__ == '__main__':
     parser.add_argument('--range-bins', type=int, default=None,
                         help='Downsample the Range axis (native 2048) to this many bins via block max-pooling. '
                              'Default: no resize.')
+    parser.add_argument('--dilate-radius', type=int, default=0,
+                        help='Mark a (2r+1)-wide neighborhood around each remapped target cell instead of just '
+                             'the single cell -- denser positive labels for aggressively downsampled targets. '
+                             'Default 0 (exact remap, no dilation).')
     args = parser.parse_args()
 
     data_path = args.data_path
     save_path = args.save_path
 
     data_process(data_path, save_path, args.doppler_bins, args.range_bins)
-    mask_generate(data_path, save_path, args.doppler_bins, args.range_bins)
+    mask_generate(data_path, save_path, args.doppler_bins, args.range_bins, args.dilate_radius)
     annojson_genetate(data_path, save_path)
     

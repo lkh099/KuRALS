@@ -13,7 +13,7 @@ from kurals.losses.generalized_dice import GeneralizedDiceLoss
 from kurals.losses.focal_loss import FocalLoss
 from kurals.losses.nbs_loss import NBSLoss
 from kurals.losses.nbsfocal import NBSFocalLoss
-from kurals.loaders.dataloaders import Rescale, Flip, HFlip, VFlip
+from kurals.loaders.dataloaders import Rescale, Flip, HFlip, VFlip, GainJitter, NoiseJitter
 
 
 def get_class_weights(dataset_type, signal_type):
@@ -214,7 +214,7 @@ def normalize(data, dataset_type, signal_type, norm_type='local'):
     return norm_data
 
 
-def define_loss(dataset_type, signal_type, custom_loss, device):
+def define_loss(dataset_type, signal_type, custom_loss, device, label_smoothing=0):
     """
     Method to define the loss to use during training
 
@@ -249,7 +249,8 @@ def define_loss(dataset_type, signal_type, custom_loss, device):
         focaloss = FocalLoss(weight=None, num_classes=num_classes)
         loss = [focaloss, lambda x, y: torch.tensor(0., device=x.device)]
     elif custom_loss == 'nbs1':
-        nbsloss = NBSLoss(weight=None, threshold=threshold_nbs, degree=1, num_classes=num_classes, gamma=1)
+        nbsloss = NBSLoss(weight=None, threshold=threshold_nbs, degree=1, num_classes=num_classes, gamma=1,
+                           label_smoothing=label_smoothing)
         loss = [nbsloss, lambda x, y: torch.tensor(0., device=x.device)]
     elif custom_loss == 'nbs1_wce':
         # Same NBS1 recalibration as 'nbs1' (noisy/hard-background suppression),
@@ -317,6 +318,10 @@ def get_transformations(transform_names, split='train', sizes=None):
         transformations.append(VFlip())
     if 'hflip' in transform_names and split == 'train':
         transformations.append(HFlip())
+    if 'gain' in transform_names and split == 'train':
+        transformations.append(GainJitter())
+    if 'noise' in transform_names and split == 'train':
+        transformations.append(NoiseJitter())
     return transformations
 
 

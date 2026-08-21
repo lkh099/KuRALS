@@ -76,7 +76,7 @@ class KuRALSDataset(Dataset):
     MAX_SCAN_GAP = 6
 
     def __init__(self, dataset, annotation_type, path_to_frames, process_signal,
-                 n_frames, transformations=None, add_temp=False):
+                 n_frames, transformations=None, add_temp=False, flip_expand=False):
         self.dataset = dataset
         self.annotation_type = annotation_type
         self.path_to_frames = Path(path_to_frames)
@@ -84,10 +84,11 @@ class KuRALSDataset(Dataset):
         self.n_frames = n_frames
         self.transformations = transformations
         self.add_temp = add_temp
+        self.flip_expand = flip_expand
         self.path_to_annots = self.path_to_frames / 'annotations' / self.annotation_type
 
         if self.n_frames > 1:
-            self.valid_indices = [
+            base_indices = [
                 start for start in range(len(self.dataset) - self.n_frames + 1)
                 if all(
                     _scan_num(self.dataset[start + k][0]) is not None
@@ -98,7 +99,19 @@ class KuRALSDataset(Dataset):
                 )
             ]
         else:
-            self.valid_indices = list(range(len(self.dataset)))
+            base_indices = list(range(len(self.dataset)))
+
+        if self.flip_expand:
+            # Deterministic full coverage of all 4 flip variants (identity/hflip/vflip/both)
+            # per sample per epoch, instead of each __getitem__ call drawing one variant at
+            # random -- exhaustive rather than stochastic use of the same hflip/vflip
+            # transforms, so every epoch trains on genuinely 4x as many distinct views.
+            variants = [(False, False), (True, False), (False, True), (True, True)]
+            self.valid_indices = [i for i in base_indices for _ in variants]
+            self.flip_variants = [v for _ in base_indices for v in variants]
+        else:
+            self.valid_indices = base_indices
+            self.flip_variants = None
 
     def transform(self, frame, is_vflip=False, is_hflip=False):
         """
@@ -140,6 +153,8 @@ class KuRALSDataset(Dataset):
         return len(self.valid_indices)
 
     def __getitem__(self, idx):
+        if self.flip_expand:
+            is_hflip, is_vflip = self.flip_variants[idx]
         idx = self.valid_indices[idx]
         init_frame_name = self.dataset[idx+self.n_frames-1][0]
         frame_names = [self.dataset[f_id][0] for f_id in range(idx, idx+self.n_frames)]
@@ -154,14 +169,9 @@ class KuRALSDataset(Dataset):
             rd_matrices.append(rd_matrix)
 
         # Apply the same transfo to all representations
-        if np.random.uniform(0, 1) > 0.5:
-            is_vflip = True
-        else:
-            is_vflip = False
-        if np.random.uniform(0, 1) > 0.5:
-            is_hflip = True
-        else:
-            is_hflip = False
+        if not self.flip_expand:
+            is_vflip = np.random.uniform(0, 1) > 0.5
+            is_hflip = np.random.uniform(0, 1) > 0.5
 
         rd_matrix = np.dstack(rd_matrices)
         rd_matrix = np.rollaxis(rd_matrix, axis=-1)
@@ -262,6 +272,37 @@ class VFlip:
         matrix = np.flip(matrix, axis=2).copy()
         mask = np.flip(mask, axis=2).copy()
         return {'matrix': matrix, 'mask': mask}
+
+
+class GainJitter:
+    """Multiply the RD matrix by a random per-sample gain factor, log-uniform in
+    [gain_min, gain_max]. Simulates natural SNR/gain variation and discourages the
+    model from memorizing exact absolute magnitude values -- mask is untouched, this
+    isn't a geometric transform. Called every training step (like Rescale), not
+    conditionally like Flip/HFlip/VFlip, so each sample gets a fresh random draw.
+    """
+
+    def __init__(self, gain_min=0.7, gain_max=1.4):
+        self.gain_min = gain_min
+        self.gain_max = gain_max
+
+    def __call__(self, frame):
+        matrix, mask = frame['matrix'], frame['mask']
+        gain = np.exp(np.random.uniform(np.log(self.gain_min), np.log(self.gain_max)))
+        return {'matrix': matrix * gain, 'mask': mask}
+
+
+class NoiseJitter:
+    """Multiply the RD matrix by per-pixel noise ~ N(1, std) -- simulates sensor
+    noise, discourages memorizing exact per-pixel values. Mask is untouched."""
+
+    def __init__(self, std=0.05):
+        self.std = std
+
+    def __call__(self, frame):
+        matrix, mask = frame['matrix'], frame['mask']
+        noise = np.random.normal(1.0, self.std, size=matrix.shape)
+        return {'matrix': matrix * noise, 'mask': mask}
 
 
 def test_sequence():

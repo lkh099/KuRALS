@@ -26,21 +26,32 @@ sys.path.insert(0, os.path.dirname(__file__))
 from kuralscw_processing import resize_rd, _bin_lookup, NATIVE_DOPPLER_BINS, NATIVE_RANGE_BINS
 
 
-def resize_mask(mask, doppler_lookup, range_lookup, out_doppler, out_range):
+def resize_mask(mask, doppler_lookup, range_lookup, out_doppler, out_range, dilate_radius=0):
     """Rebuild a (4, native_h, native_w) one-hot dense mask at (4, out_doppler,
     out_range), remapping each foreground pixel through the same bin groups used
     for the signal -- mirrors kuralscw_processing.get_mask's own construction
     (background=1 everywhere, then flipped at the remapped target cells) rather
     than pooling the existing one-hot array per channel, which could leave both
-    background and a class simultaneously set to 1 in the same output cell."""
+    background and a class simultaneously set to 1 in the same output cell.
+
+    dilate_radius>0 marks a (2*radius+1)-wide neighborhood around each remapped
+    target cell instead of just the single cell -- at aggressive downsampling
+    (e.g. 8x64) a target's native 3x3 dense box collapses to 1-2 output cells,
+    an extremely sparse positive-label rate. Each mask file holds exactly one
+    target (see module docstring), so dilating never risks marking two different
+    classes in the same cell. Note: this changes what "ground truth" means, so
+    dice/precision from a dilate_radius>0 dataset isn't directly comparable to
+    dilate_radius=0 numbers -- the positive region itself is larger."""
     out = np.zeros((mask.shape[0], out_doppler, out_range))
     out[0] = 1.0
     for c in range(1, mask.shape[0]):
         ys, xs = np.where(mask[c] == 1)
         for y, x in zip(ys, xs):
             oy, ox = doppler_lookup[y], range_lookup[x]
-            out[0, oy, ox] = 0.0
-            out[c, oy, ox] = 1.0
+            y0, y1 = max(0, oy - dilate_radius), min(out_doppler, oy + dilate_radius + 1)
+            x0, x1 = max(0, ox - dilate_radius), min(out_range, ox + dilate_radius + 1)
+            out[0, y0:y1, x0:x1] = 0.0
+            out[c, y0:y1, x0:x1] = 1.0
     return out
 
 
@@ -50,6 +61,10 @@ def main():
     parser.add_argument('--dst', required=True, help='Output root for the resized dataset.')
     parser.add_argument('--doppler-bins', type=int, required=True)
     parser.add_argument('--range-bins', type=int, required=True)
+    parser.add_argument('--dilate-radius', type=int, default=0,
+                        help='Mark a (2r+1)-wide neighborhood around each remapped target cell instead of '
+                             'just the single cell -- denser positive labels for aggressively downsampled '
+                             'targets. Default 0 (exact remap, no dilation).')
     args = parser.parse_args()
 
     doppler_lookup = _bin_lookup(NATIVE_DOPPLER_BINS, args.doppler_bins)
@@ -80,7 +95,8 @@ def main():
                 if not os.path.exists(src_mask_path):
                     continue
                 mask = np.load(src_mask_path)
-                resized_mask = resize_mask(mask, doppler_lookup, range_lookup, args.doppler_bins, args.range_bins)
+                resized_mask = resize_mask(mask, doppler_lookup, range_lookup, args.doppler_bins, args.range_bins,
+                                            dilate_radius=args.dilate_radius)
                 dst_frame_dir = os.path.join(dst_dense_dir, frame_name)
                 os.makedirs(dst_frame_dir, exist_ok=True)
                 np.save(os.path.join(dst_frame_dir, 'range_doppler.npy'), resized_mask)
