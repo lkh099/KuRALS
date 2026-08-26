@@ -27,6 +27,22 @@ python train.py --cfg config_files/kuralsnet.json --dataset KuRALS_CW
 # or: bash train.sh
 ```
 
+## Pretrained checkpoints
+
+`checkpoints/` at the repo root ships the curated best-per-resolution checkpoints
+directly (see `checkpoints/README.md` for what's in each directory and its val/test
+numbers) -- no separate download or archive needed. E.g. to run the tracker demo against
+the native best model without training anything yourself:
+
+```bash
+python demo_tracker.py \
+    --model-path ../checkpoints/native_best_0.5144/results/val_doppler_model.pt \
+    --dataset KuRALS_CW --split Test --sequence 两个无人机 --output tracker_demo.gif
+```
+
+(You still need the dataset itself -- see "SoC 8x64 buffer dataset" below, or the root
+`README.md` for the native dataset.)
+
 ## Evaluating against CFAR
 
 `test_kuralsnet_vs_cfar.py` scores a trained segmentation model (any of the baselines or `kuralsnet_npu_seg`) against CFAR using the same binary foreground/background convention (`Evaluator(num_class=2)`, ground truth = "not background"):

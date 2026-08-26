@@ -3,6 +3,8 @@
 *.npy
 *.png
 *.npz
+# handoff checkpoints are committed on purpose -- see checkpoints/README.md
+!checkpoints/**/*.pt
 wandb/
 output/
 kurad/outputs/
