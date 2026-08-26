@@ -48,7 +48,13 @@ itself writes new checkpoints.
   sweep has a confound**: bc=64 is the only width that exactly matches the native source
   checkpoint's own width, so it's the only one with full pretrained-weight transfer for
   the bottleneck layers. See CLAUDE.md's "Bottleneck width sweep" section before treating
-  these as a clean capacity ablation.
+  these as a clean capacity ablation. Folder name = `bc<width>_<val dice>`:
+  - `bc32_0.3062/` -- `bottleneck_ch=32`. Config: `kuralsnet_npu_seg_8x64_bc32_kernel3_finetune_dropout.json`.
+  - `bc96_0.3028/` -- `bottleneck_ch=96`. Config: `kuralsnet_npu_seg_8x64_bc96_kernel3_finetune_dropout.json`.
+  - `bc128_0.3090/` -- `bottleneck_ch=128`. Config: `kuralsnet_npu_seg_8x64_bc128_kernel3_finetune_dropout.json`.
+  - `bc192_0.3353/` -- `bottleneck_ch=192`. Config: `kuralsnet_npu_seg_8x64_bc192_kernel3_finetune_dropout.json`.
+
+  (all configs under `kurals/config_files/`)
 
 - **`8x64_oracle_ceiling_reference_NOT_deployable/`** -- ground-truth-based background
   flattening (`oracle_detect_and_damp_dataset.py`), trained *and evaluated* on that
