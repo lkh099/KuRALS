@@ -5,6 +5,8 @@
 *.npz
 # handoff checkpoints are committed on purpose -- see checkpoints/README.md
 !checkpoints/**/*.pt
+# sample IFM for the NPU cfg_gen.py pipeline is committed on purpose
+!kurals/input/*.npy
 wandb/
 output/
 kurad/outputs/
