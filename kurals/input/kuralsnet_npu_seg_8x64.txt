@@ -1,0 +1,249 @@
+# cfg_gen.py input file for KuRALSNetNPUSeg, the 8x64 SoC-buffer deployable
+# checkpoint (checkpoints/8x64_anchor_0.3757_bc64/, val dice 0.3757 / test
+# dice 0.3635): bottleneck_ch=64 (default), bottleneck_kernel_size=3,
+# dropout_rate=0.1 (train-only, absent from this inference-time graph),
+# n_classes=4, n_frames=1. Architecture: kurals/models/kuralsnet_npu_seg.py.
+#
+# Darknet-style layer list, in cfg_gen.py's parse_config_file() format.
+# 'from'/'layers' below are RAW 0-based positions in this file's own layer
+# list (matching cfg_gen.py's own indexing: cfg[from_idx]/cfg[route_idx] --
+# NOT Darknet's usual "-N relative" convention). Every layer's index is
+# noted in its comment for that reason. Input HxW = 8x64 (Doppler x Range)
+# needs no runtime padding (already a multiple of KuRALSNetNPUSeg.ALIGN=8),
+# so this maps directly, no pad-then-crop step to model here.
+#
+# See the chat message this file was produced in for the required
+# cfg_gen.py workload-block snippet (WIDTH/HEIGHT/CUTPOINT/INPUT_FILE) and,
+# importantly, caveats that must be resolved before trusting a generated
+# npu_cfg.c against this file: PF=16 channel-alignment on dec_a (24ch) and
+# head_out (4ch), and first-layer channel-count handling (CHANNEL=PF=16 vs.
+# this model's true 1-channel input) -- neither is a plain topology-mapping
+# issue, both need an explicit zero-padded weight export before real
+# hardware numbers can be trusted.
+
+# --- Encoder ---
+
+[convolutional]                 # idx 0: stem.dw
+name=stem_dw
+size=3
+stride=2
+filters=1
+pad=1
+depthwise=1
+activation=leaky
+
+[convolutional]                 # idx 1: stem.pw
+name=stem_pw
+size=1
+stride=1
+filters=16
+pad=0
+activation=leaky
+
+[convolutional]                 # idx 2: stageA.dw
+name=stageA_dw
+size=3
+stride=1
+filters=16
+pad=1
+depthwise=1
+activation=leaky
+
+[convolutional]                 # idx 3: stageA.pw -- SKIP tensor, concatenated back in at idx 25's route
+name=stageA_pw
+size=1
+stride=1
+filters=32
+pad=0
+activation=leaky
+
+[convolutional]                 # idx 4: down1.dw
+name=down1_dw
+size=3
+stride=2
+filters=32
+pad=1
+depthwise=1
+activation=leaky
+
+[convolutional]                 # idx 5: down1.pw
+name=down1_pw
+size=1
+stride=1
+filters=64
+pad=0
+activation=leaky
+
+[convolutional]                 # idx 6: down2.dw
+name=down2_dw
+size=3
+stride=2
+filters=64
+pad=1
+depthwise=1
+activation=leaky
+
+[convolutional]                 # idx 7: down2.pw -- bottleneck block input (x0), retained for idx 10's shortcut
+name=down2_pw
+size=1
+stride=1
+filters=64
+pad=0
+activation=leaky
+
+# --- Bottleneck: 3x residual dw-separable blocks (dw -> pw(linear) -> +input -> leaky) ---
+
+[convolutional]                 # idx 8: bott_c.dw
+name=bott_c_dw
+size=3
+stride=1
+filters=64
+pad=1
+depthwise=1
+activation=leaky
+
+[convolutional]                 # idx 9: bott_c.pw (linear -- eltwise_en fused via idx 10's shortcut)
+name=bott_c_pw
+size=1
+stride=1
+filters=64
+pad=0
+activation=linear
+
+[shortcut]                      # idx 10: adds idx 7 (down2.pw) into idx 9's output, then leaky -> x1
+from=7
+activation=leaky
+
+[convolutional]                 # idx 11: bott_d1.dw
+name=bott_d1_dw
+size=3
+stride=1
+filters=64
+pad=1
+depthwise=1
+activation=leaky
+
+[convolutional]                 # idx 12: bott_d1.pw (linear)
+name=bott_d1_pw
+size=1
+stride=1
+filters=64
+pad=0
+activation=linear
+
+[shortcut]                      # idx 13: adds x1 (retained from idx 9, via idx 10's redirect) -> leaky -> x2
+from=10
+activation=leaky
+
+[convolutional]                 # idx 14: bott_d2.dw
+name=bott_d2_dw
+size=3
+stride=1
+filters=64
+pad=1
+depthwise=1
+activation=leaky
+
+[convolutional]                 # idx 15: bott_d2.pw (linear)
+name=bott_d2_pw
+size=1
+stride=1
+filters=64
+pad=0
+activation=linear
+
+[shortcut]                      # idx 16: adds x2 (retained via idx 13's redirect) -> leaky -> p_deep
+from=13                         # bott_dropout (train-only, identity at eval) needs no NPU layer here
+activation=leaky
+
+# --- Decoder: no learned upsample, plain conv + fused bare nearest 2x ---
+
+[convolutional]                 # idx 17: upconv_b.dw
+name=upconv_b_dw
+size=3
+stride=1
+filters=64
+pad=1
+depthwise=1
+activation=leaky
+
+[convolutional]                 # idx 18: upconv_b.pw -- upsample_en fused via idx 19
+name=upconv_b_pw
+size=1
+stride=1
+filters=32
+pad=0
+activation=leaky
+
+[upsample]                      # idx 19: /8 -> /4, fused onto idx 18's register (no own NPU layer)
+stride=2
+
+[convolutional]                 # idx 20: refine_b.dw -- plain refine, no concat
+name=refine_b_dw
+size=3
+stride=1
+filters=32
+pad=1
+depthwise=1
+activation=leaky
+
+[convolutional]                 # idx 21: refine_b.pw
+name=refine_b_pw
+size=1
+stride=1
+filters=32
+pad=0
+activation=leaky
+
+[convolutional]                 # idx 22: upconv_a.dw
+name=upconv_a_dw
+size=3
+stride=1
+filters=32
+pad=1
+depthwise=1
+activation=leaky
+
+[convolutional]                 # idx 23: upconv_a.pw -- upsample_en fused via idx 24. Trained model forces
+name=upconv_a_pw                # this layer's out_scale onto stageA.pw's (idx 3) own scale for the concat
+size=1                          # below (no rescale register on a concat) -- cfg_gen.py's register format has
+stride=1                        # no per-layer "match another layer's out scale" field; whoever runs export_int8
+filters=32                      # on this checkpoint must apply that same scale-matching manually when deriving
+pad=0                           # idx 23's scale/shift/bias fields, or concat correctness breaks.
+activation=leaky
+
+[upsample]                      # idx 24: /4 -> /2, fused onto idx 23's register
+stride=2
+
+[route]                         # idx 25: concat -- late operand first (idx 23, still on-chip), early second
+layers=23,3                     # (idx 3 = stageA.pw skip, reloaded from DRAM). Attaches to idx 26's input.
+
+[convolutional]                 # idx 26: dec_a.dw (in_ch=64 from the 32+32 concat)
+name=dec_a_dw
+size=3
+stride=1
+filters=64
+pad=1
+depthwise=1
+activation=leaky
+
+[convolutional]                 # idx 27: dec_a.pw -- 24 output channels, NOT a multiple of PF=16 (see caveats)
+name=dec_a_pw
+size=1
+stride=1
+filters=24
+pad=0
+activation=leaky
+
+# --- Segmentation head: raw per-pixel logits, decoded (argmax) off-NPU ---
+
+[convolutional]                 # idx 28: head_out -- 4 output channels (n_classes), NOT a multiple of PF=16.
+name=head_out                   # is_last_layer (marked via idx 29's stub below) -- save_dram_addr assigned
+size=1                          # here. The model's own final /2->/1 nearest upsample + argmax decode both
+stride=1                        # happen off-NPU (matches the existing "argmax decode off-NPU" convention
+filters=4                       # documented in kuralsnet_npu_seg.py/CLAUDE.md) -- no [upsample] entry after
+pad=0                           # this one; the /2-resolution logits are what gets DMA'd out.
+activation=linear
+
+[yolo]                          # idx 29: terminal stub, REQUIRED by cfg_gen.py's design (it always reads
+                                 # cfg[idx+1] for the last conv too -- this isn't a real detection head).
