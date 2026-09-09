@@ -66,6 +66,24 @@ itself writes new checkpoints.
   (peaks at 0.3772 around epoch 100, collapses to 0.2315 by epoch 300) rather than just
   failing to transfer. Keep for reference only -- see CLAUDE.md's "Oracle ceiling" section.
 
+- **`8x64_leaky0125_wq2x1_0.3468_bc64/`** -- same kernel3+finetune+dropout recipe as the
+  anchor above, retrained under two new hardware-matching changes to
+  `kurals/models/quant.py`: leaky ReLU slope `0.1 -> 0.125` (`2^-3`, a shift-friendly
+  value), and the weight-multiply datapath `w_eff = 2*w_stored + 1` instead of
+  `w_eff = w_stored` (stored int8 byte is never what's actually multiplied against the
+  input -- see that file for the full derivation). val dice 0.3468 / test dice 0.3581
+  (epoch 126) -- **below the anchor above, and not yet a settled result**: this specific
+  run later collapsed to trivial all-background prediction (dice ~0.2499) by epoch 285,
+  well after this checkpoint's own peak, in a run that was separately cut short by an
+  unrelated session restart before reaching epoch 300. A follow-up run
+  (`kuralsnet_npu_seg_8x64_kernel3_finetune_dropout_leaky0125_wq2x1_latefreeze.json`,
+  `quant_freeze_iters` moved 60000->92000 to test whether freezing the quantization grid
+  earlier -- leaving a long weight-only tail -- is what let the collapse happen) is what
+  produced this exact checkpoint's replacement candidate; check git log / re-run status
+  before treating this specific `.pt` as final. Config: `kuralsnet_npu_seg_8x64_kernel3_finetune_dropout.json`
+  (same file as the anchor -- only the shared `quant.py` activation/weight-quant code
+  changed, not this config).
+
 ## Not included
 
 The ~40 retired `kuralsnet_npu` (old CenterNet detection-head) run directories --

@@ -169,7 +169,7 @@ def pick_shift_and_int16(multiplier, shift_lo, shift_hi):
 
 
 _ACTIVATIONS = {
-    'leaky': lambda x: F.leaky_relu(x, 0.1),
+    'leaky': lambda x: F.leaky_relu(x, 0.125),
     'relu': lambda x: F.relu(x),
     'linear': lambda x: x,
 }
@@ -270,8 +270,14 @@ class QuantConvBNAct(nn.Module):
         """
         w_folded, b_folded = self._fold_bn()
         w_absmax = w_folded.abs().amax(dim=(1, 2, 3)).clamp(min=1e-8)
-        w_scale = w_absmax / 127.0
-        w_int8 = torch.clamp(torch.round(w_folded / w_scale.view(-1, 1, 1, 1)), -127, 127).to(torch.int8)
+        # Hardware weight datapath: the stored int8 byte w_stored is transformed to
+        # w_eff = 2*w_stored + 1 before it's ever multiplied against an activation --
+        # see forward()'s matching comment for the full derivation. Effective range is
+        # therefore the odd integers in [-255, 255] (never zero), not [-127, 127], so
+        # w_scale is calibrated against 255 (the achievable |w_eff| ceiling), not 127.
+        w_scale = w_absmax / 255.0
+        w_stored = torch.clamp(torch.round((w_folded / w_scale.view(-1, 1, 1, 1) - 1.0) / 2.0), -128, 127)
+        w_int8 = w_stored.to(torch.int8)
 
         in_scale = self.in_observer.scale(127.0)
         unsigned_out = (self.act_name == 'relu')
@@ -324,11 +330,19 @@ class QuantConvBNAct(nn.Module):
         x_scale = self.in_observer.scale(127.0)
         x_q = ste_clamp(ste_round(x / x_scale), -128.0, 127.0)
 
-        # ---- weights: fake-quantize to signed int8, per output channel ----
+        # ---- weights: fake-quantize to signed int8, per output channel. Hardware
+        # datapath: the stored int8 byte w_stored is NOT what gets multiplied against
+        # the input -- it's transformed to w_eff = 2*w_stored + 1 first (always odd,
+        # never zero), so the effective weight range is [-255, 255], not [-127, 127].
+        # w_scale is calibrated against that 255 ceiling; w_stored is solved for by
+        # inverting the transform (w_folded/w_scale - 1)/2, then rounded/clamped to
+        # the full signed-int8 range [-128, 127] (not [-127, 127] -- the old symmetric
+        # weight range was specific to the old w_eff == w_stored convention). ----
         w_folded, b_folded = self._fold_bn()
         w_absmax = w_folded.detach().abs().amax(dim=(1, 2, 3)).clamp(min=1e-8)
-        w_scale = w_absmax / 127.0
-        w_q = ste_clamp(ste_round(w_folded / w_scale.view(-1, 1, 1, 1)), -127.0, 127.0)
+        w_scale = w_absmax / 255.0
+        w_stored = ste_clamp(ste_round((w_folded / w_scale.view(-1, 1, 1, 1) - 1.0) / 2.0), -128.0, 127.0)
+        w_q = 2.0 * w_stored + 1.0
 
         # ---- integer accumulator (simulated in float, exact) ----
         acc = F.conv2d(x_q, w_q, stride=self.stride, padding=self.padding, groups=self.groups)

@@ -32,7 +32,7 @@ import torch
 import torch.nn.functional as F
 
 _ACT_FNS = {
-    'leaky': lambda x: F.leaky_relu(x, 0.1),
+    'leaky': lambda x: F.leaky_relu(x, 0.125),
     'relu': lambda x: F.relu(x),
     'linear': lambda x: x,
 }
@@ -43,7 +43,13 @@ def conv_layer(x_float, arrays, layer_meta, out_scale_override=None):
     Returns the dequantized float64 output -- mirrors QuantConvBNAct.forward()'s
     hard (exact hardware) path exactly, minus the STE/gradient machinery."""
     name = layer_meta['name']
-    w = torch.from_numpy(arrays[f'{name}.weight_int8'].astype(np.float64))
+    w_stored = torch.from_numpy(arrays[f'{name}.weight_int8'].astype(np.float64))
+    # Hardware weight datapath: the stored int8 byte is transformed to
+    # 2*w_stored + 1 before it's multiplied against the input -- see
+    # kurals/models/quant.py's QuantConvBNAct.forward()/export_int8() for the
+    # full derivation. Never zero, effective range is the odd integers in
+    # [-255, 255].
+    w = 2.0 * w_stored + 1.0
     scale = torch.from_numpy(arrays[f'{name}.scale_int16'].astype(np.float64)).view(1, -1, 1, 1)
     bias = torch.from_numpy(arrays[f'{name}.bias_int16'].astype(np.float64)).view(1, -1, 1, 1)
 

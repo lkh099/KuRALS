@@ -163,6 +163,43 @@ native sources (expensive) or all widths trained from scratch with no finetune i
   is a non-issue at this resolution. Affordability doesn't imply benefit, though -- TTA
   is already measured to hurt the exact checkpoint above (0.3757 -> 0.3135).
 
+### Hardware weight-multiply datapath: `w_eff = 2*w_stored + 1` (in progress, not settled)
+
+The real NPU doesn't multiply the stored int8 weight byte directly -- it transforms it
+first: `w_eff = 2*w_stored + 1` (always odd, never zero; effective range `[-255, 255]`
+vs. the stored byte's full `[-128, 127]`). Ported into `kurals/models/quant.py`'s
+`QuantConvBNAct` (both the training-time STE fake-quant path and `export_int8()`) --
+`w_scale` is now calibrated against 255, not 127, and `w_stored` is solved for by
+inverting the transform. `kurals/int8_inference.py`'s pure-integer replay was updated to
+match. Also folded in at the same time: leaky ReLU slope `0.1 -> 0.125` (`2^-3`,
+presumably shift-friendly for the same hardware), same `_ACTIVATIONS` dict both files
+share.
+
+**This is a bigger change than it looks**: `w_eff`'s `+1` isn't scaled by anything
+trainable, so every conv's integer accumulator becomes `2*dot(x, w_stored) + sum(x)` --
+an unlearnable, unweighted sum of the receptive field baked into every single layer,
+on top of the real weighted sum. A first retrain of the anchor recipe under this scheme
+(`checkpoints/8x64_leaky0125_wq2x1_0.3468_bc64/`, same config as the anchor) peaked at
+val dice 0.3468 (epoch 126, below the anchor's 0.3757) then **collapsed to trivial
+all-background prediction (dice ~0.2499) by epoch 285** -- 111 epochs after
+`quant_freeze_iters=60000` (~epoch 174) locked the quantization grid, i.e. entirely
+during the weight-only tail with no further observer recalibration. Hypothesis: the
+unlearnable `+1` term's relative weight against the true learned signal can drift after
+freezing in a way the old `w_eff=w_stored` scheme didn't, and a frozen/stale calibration
+has no way to compensate. Not confirmed -- this codebase has hit similar background
+collapses before under the *old* weight scheme too (see the phase-1 QAT-timing collapse
+noted in `checkpoints/README.md`'s native-checkpoint section provenance), so this could
+just be that same general fragility resurfacing rather than something `2w+1`-specific.
+
+Mitigation being tested: `kuralsnet_npu_seg_8x64_kernel3_finetune_dropout_leaky0125_wq2x1_latefreeze.json`,
+identical recipe with `quant_freeze_iters` moved 60000 -> 92000 (~58% -> ~92% of the
+~99700-iteration budget), shrinking the unsupervised-drift tail from ~126 epochs to
+~24. Best-val-checkpoint selection means a late collapse doesn't retroactively lose the
+best result either way -- but check this section's/checkpoints/README.md's status before
+treating either checkpoint from this scheme as final, and don't assume a full 300-epoch
+run under this scheme is safe just because early/mid-training dice looks fine (same
+lesson as the oracle-ceiling section above, different mechanism).
+
 ### Normalization methodology note
 
 The established anchor config uses `norm_type: "tvt"` (fixed, precomputed global
@@ -178,7 +215,7 @@ axis, not just a stylistic difference.
 
 ## Where things live
 
-- **Checkpoints live in this repo under `checkpoints/`** (explicitly whitelisted in `.gitignore` against the general `*.pt` exclusion -- see `checkpoints/README.md`), trimmed to `config.json` + `results/*.pt`/`*.json` (TensorBoard `boards/` logs dropped, machine-specific). Kept checkpoints are pruned to: the native best (0.5144, `checkpoints/native_best_0.5144/`), the `kuralsnet` baseline (only run that exists, `checkpoints/kuralsnet_baseline/`), and the current 8x64 best/anchor (0.3757/0.3635, kernel3+finetune+dropout, `checkpoints/8x64_anchor_0.3757_bc64/`) plus its width-sweep family (bc=32/96/128/192, `checkpoints/8x64_width_sweep/`) and the oracle-ceiling reference (`checkpoints/8x64_oracle_ceiling_reference_NOT_deployable/`) -- everything else this branch tried has its config's `comments` field as the record, but no surviving weights (see git log / this file's history if a specific old run's numbers are needed). New checkpoints `train.py` produces during further work still land under the `logs` path from `kurals/config_files/config.ini` (set via `kurals/utils/set_paths.py`), same as always -- only the curated set above is copied into `checkpoints/` and committed.
+- **Checkpoints live in this repo under `checkpoints/`** (explicitly whitelisted in `.gitignore` against the general `*.pt` exclusion -- see `checkpoints/README.md`), trimmed to `config.json` + `results/*.pt`/`*.json` (TensorBoard `boards/` logs dropped, machine-specific). Kept checkpoints are pruned to: the native best (0.5144, `checkpoints/native_best_0.5144/`), the `kuralsnet` baseline (only run that exists, `checkpoints/kuralsnet_baseline/`), and the current 8x64 best/anchor (0.3757/0.3635, kernel3+finetune+dropout, `checkpoints/8x64_anchor_0.3757_bc64/`) plus its width-sweep family (bc=32/96/128/192, `checkpoints/8x64_width_sweep/`), the oracle-ceiling reference (`checkpoints/8x64_oracle_ceiling_reference_NOT_deployable/`), and the in-progress `2*w_stored+1` weight-quantization retrain (0.3468/0.3581, not yet settled -- see the SoC section's "Hardware weight-multiply datapath" writeup, `checkpoints/8x64_leaky0125_wq2x1_0.3468_bc64/`) -- everything else this branch tried has its config's `comments` field as the record, but no surviving weights (see git log / this file's history if a specific old run's numbers are needed). New checkpoints `train.py` produces during further work still land under the `logs` path from `kurals/config_files/config.ini` (set via `kurals/utils/set_paths.py`), same as always -- only the curated set above is copied into `checkpoints/` and committed.
 - **Datasets are also NOT in this repo** (`.gitignore` excludes `*.npy`) -- regenerate the 8x64 one with `resize_extracted_dataset.py` (see the SoC section above) from a native-resolution extracted dataset.
 - **Dataset preprocessing**: `kurals/dataset_process/kuralscw_processing.py` (raw `.mat` -> native-resolution extracted dataset), `resize_extracted_dataset.py` (native -> any smaller RD buffer via block max-pooling), `cfar_detect_and_damp_dataset.py` / `oracle_detect_and_damp_dataset.py` (contrast-preservation attempts, both ruled out as deployable -- see SoC section), `cfar_normalize_dataset.py` (continuous SCR normalization, also underperformed), `build_mixed_train_dataset.py` (train-only privileged-transform dataset builder).
 - **Checkpoint adaptation for finetuning across a shape mismatch**: `expand_kernel3.py` (kernel_size 5->3), `expand_stem_channels.py` (n_frames 1->N), `expand_bottleneck_width.py` (bottleneck_ch 64->N) -- all follow the same pattern: build a fresh target-shaped model, copy every state_dict key whose shape matches the source checkpoint, random-init the rest.
