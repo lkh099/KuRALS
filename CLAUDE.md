@@ -4,7 +4,7 @@ Project context for whoever (or whichever Claude Code session) picks this up nex
 
 ## What this is
 
-A radar target-detection pipeline for the KuRALS range-Doppler dataset, with one branch specifically targeting deployment on a **128-MAC-array NPU @ 100MHz**, 20Hz target frame rate -- a hard **640M MAC/inference budget** (`128 * 100e6 * 0.050s`). `kurals/cfg_gen.py`'s op set (conv2d k∈{1,3} stride∈{1,2}, depthwise conv k∈{1,3,5}, fused 2x nearest upsample/maxpool/eltwise-add, 2-source route/concat, leaky/relu/linear activation only -- no dilation, no transposed conv, no 3D conv) is the hard constraint every NPU-targeted model in this repo is built from.
+A radar target-detection pipeline for the KuRALS range-Doppler dataset, with one branch specifically targeting deployment on a **128-MAC-array NPU @ 100MHz**, 20Hz target frame rate -- a hard **640M MAC/inference budget** (`128 * 100e6 * 0.050s`). `kurals/cfg_gen.py`'s op set (conv2d k∈{1,3} stride∈{1,2}, depthwise conv k∈{1,3,5}, fused 2x nearest upsample/maxpool/eltwise-add, 2-source route/concat, leaky/relu/linear activation only -- no dilation, no transposed conv, no 3D conv) is the hard constraint every NPU-targeted model in this repo is built from. **One more constraint that is not visible in cfg_gen.py's register format: an eltwise-add may not be followed directly by an activation -- see "Eltwise-add activation" below.**
 
 ## Current best model
 
@@ -167,6 +167,52 @@ native sources (expensive) or all widths trained from scratch with no finetune i
   proportionally. TTA or even a large ensemble is trivially affordable here; MAC budget
   is a non-issue at this resolution. Affordability doesn't imply benefit, though -- TTA
   is already measured to hurt the exact checkpoint above (0.3757 -> 0.3135).
+
+### Eltwise-add activation: `add -> leaky` is illegal, `add -> conv -> leaky` is not
+
+**The fused eltwise-add has no usable activation stage of its own.** An add must be followed
+by a conv layer, and that conv's own `act_type` supplies the nonlinearity. `add -> leaky`
+with nothing in between does not run, even though `cfg_gen.py`'s register format has an
+`act_elt` field (reg[6] bits 21-22) that can encode it. That field is simply unexercised:
+tiny-yolov2, the only silicon-verified workload, has no `[shortcut]` at all, so nothing has
+ever driven it. In cfg input terms: `[shortcut] activation=linear` is legal,
+`activation=leaky` / `activation=relu` are not.
+
+**Every checkpoint in this repo violates this.** `KuRALSNetNPUSeg`'s three bottleneck blocks
+are `QuantResidualDWSeparableBlock`s built with `act='leaky'`, and that block computes
+`act_elt(pw_linear(dw(x)) + x)` -- add, then leaky, no conv between. That includes the
+current best (`checkpoints/8x64_stemstride1_0.6401_bc64/`), which therefore **cannot be
+deployed as-is**; its dice numbers remain valid as a research result but not as a
+deployability claim.
+
+Guarded in two places, both of which now refuse rather than silently emitting an
+unrunnable config: `export_int8.py`'s `LEGAL_ELTWISE_ACTS` assertion (fires when building
+the manifest) and `manifest_to_cfg_input.py` (fires when emitting `[shortcut]`). The
+committed `kurals/input/kuralsnet_npu_seg_8x64.txt` was generated before the guard existed
+and contains three illegal `activation=leaky` shortcuts -- it carries a warning header and
+must not be fed to cfg_gen.py.
+
+**Replacement, in preference order.** `eltwise_act` is now a constructor param on
+`KuRALSNetNPUSeg` (and on `QuantResidualDWSeparableBlock`), defaulting to the old illegal
+behavior so existing checkpoints still load and evaluate.
+
+1. **`eltwise_act='linear'` -- move the nonlinearity to the following conv.** The block
+   becomes `y = pw_linear(dw(x)) + x`, and the next conv applies leaky as its own
+   activation. Costs nothing: no extra MACs, no extra parameters, and the state_dict is
+   unchanged, so the current 0.6401 weights load into it with `strict=True` and it can be
+   *finetuned* rather than trained from scratch. Structurally safe -- every consumer of a
+   bottleneck block's output is already a conv (`bott_c -> bott_d1.dw`,
+   `bott_d1 -> bott_d2.dw`, `bott_d2 -> dropout -> upconv_b.dw`). The tradeoff is that the
+   add and the next conv are now consecutive linear ops, i.e. one fewer nonlinearity between
+   successive residual adds -- this is exactly the pre-activation ResNet ordering, which is
+   well precedented and often trains better. **It still requires a retrain/finetune: the
+   function changes, so the existing weights are not correct for it.**
+2. **Insert a 1x1 conv after the add purely to carry the activation.** `y = leaky(pw2(sum))`.
+   Keeps a nonlinearity adjacent to the add and adds a little capacity. Costs ~131k MACs per
+   block (~0.4M total at 8x64, against a 640M budget -- negligible) plus ~4k params per
+   block. Use this if option 1 measurably loses accuracy.
+3. **Drop the residual adds entirely.** Biggest behavioral change, gives up the eltwise
+   feature; only worth considering if both above fail.
 
 ### The /2 output head was the real 8x64 ceiling -- fixed by `stem_stride=1` (current best)
 

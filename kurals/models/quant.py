@@ -428,12 +428,18 @@ class QuantResidualDWSeparableBlock(nn.Module):
     independently calibrated.
     """
 
-    def __init__(self, ch, act='leaky', dw_kernel_size=3):
+    def __init__(self, ch, act='leaky', dw_kernel_size=3, eltwise_act=None):
         super().__init__()
         self.dw = QuantConvBNAct(ch, ch, kernel_size=dw_kernel_size, stride=1, act=act, depthwise=True)
         self.pw = QuantConvBNAct(ch, ch, kernel_size=1, stride=1, act='linear', depthwise=False)
-        self.act_elt = _ACTIVATIONS[act]
-        self.act_elt_name = act
+        # eltwise_act='linear' is the only form this NPU can actually run: the fused add
+        # has no verified activation stage, so the nonlinearity has to come from the next
+        # conv layer instead (see export_int8.py's LEGAL_ELTWISE_ACTS, which refuses to
+        # export anything else). Defaults to `act` to keep already-trained checkpoints
+        # loading and evaluating unchanged -- those are not deployable as-is.
+        eltwise_act = act if eltwise_act is None else eltwise_act
+        self.act_elt = _ACTIVATIONS[eltwise_act]
+        self.act_elt_name = eltwise_act
 
     def forward(self, x):
         if not (self.dw.quant_enabled and self.pw.quant_enabled):

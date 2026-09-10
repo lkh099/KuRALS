@@ -84,7 +84,8 @@ def main():
                      bottleneck_kernel_size=cfg.get('bottleneck_kernel_size', 5),
                      dropout_rate=cfg.get('dropout_rate', 0),
                      encoder_depth=cfg.get('encoder_depth', None),
-                     stem_stride=cfg.get('stem_stride', None))
+                     stem_stride=cfg.get('stem_stride', None),
+                     eltwise_act=cfg.get('eltwise_act', None))
     elif cfg['model'] == 'fcn8s':
         net = FCN8s(n_classes=data['cfg']['nb_classes'],
                     n_frames=data['cfg']['nb_input_channels'])

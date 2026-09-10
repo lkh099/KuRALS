@@ -67,7 +67,8 @@ def main():
                       bottleneck_kernel_size=cfg.get('bottleneck_kernel_size', 5),
                       dropout_rate=cfg.get('dropout_rate', 0),
                       encoder_depth=cfg.get('encoder_depth', None),
-                      stem_stride=cfg.get('stem_stride', None)) if cfg['model'] == 'kuralsnet_npu_seg' else {}
+                      stem_stride=cfg.get('stem_stride', None),
+                      eltwise_act=cfg.get('eltwise_act', None)) if cfg['model'] == 'kuralsnet_npu_seg' else {}
     net = MODEL_CTORS[cfg['model']](cfg['nb_classes'], cfg['nb_input_channels'], cfg['dataset'],
                                     cfg.get('bottleneck_ch', 64), **seg_kwargs)
     state = torch.load(args.model_path, map_location='cpu')

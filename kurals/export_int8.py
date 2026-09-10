@@ -43,6 +43,14 @@ import torch
 
 from kurals.utils.checkpoint_io import load_segmentation_model
 
+# Hardware constraint: the fused eltwise-add has no verified activation stage of its
+# own. An add must be followed by a conv layer, which supplies the nonlinearity via
+# its own act_type -- "add -> leaky" with nothing in between is illegal, even though
+# cfg_gen.py's register format has an act_elt field that can encode it (that field is
+# unexercised: tiny_yolov2, the only silicon-verified workload, has no shortcut at
+# all). 'linear' means "write the sum through unmodified", which is legal.
+LEGAL_ELTWISE_ACTS = ('linear',)
+
 
 def _export_layer(name, layer, out_scale_override=None):
     d = layer.export_int8(out_scale_override=out_scale_override)
@@ -128,11 +136,16 @@ def export_kuralsnet_npu_seg(net):
     # Bottleneck: eltwise-add residual blocks -- pw's output scale is forced
     # to match the block's own input scale (its dw's in_observer), matching
     # the hardware constraint that an eltwise-add's two operands share one
-    # activation scale. The sum is then run through act_elt (leaky here) and
-    # re-clamped -- that happens *after* this conv, so it's recorded as
-    # eltwise metadata on this layer's entry rather than in pw's own (linear)
-    # activation.
+    # activation scale. The sum is recorded as eltwise metadata on this
+    # layer's entry rather than in pw's own (linear) activation.
     for stage_name, stage in (('bott_c', net.bott_c), ('bott_d1', net.bott_d1), ('bott_d2', net.bott_d2)):
+        assert stage.act_elt_name in LEGAL_ELTWISE_ACTS, (
+            f"{stage_name}: eltwise-add feeding '{stage.act_elt_name}' directly is not legal on "
+            f"this NPU -- an eltwise-add must be followed by a conv layer before any activation, "
+            f"so only {LEGAL_ELTWISE_ACTS} may sit on the add itself (see this module's "
+            f"LEGAL_ELTWISE_ACTS and CLAUDE.md's 'Eltwise-add activation' section). Rebuild the "
+            f"block with eltwise_act='linear' and let the following conv apply the nonlinearity; "
+            f"a checkpoint trained with the illegal form cannot be deployed as-is.")
         add(f'{stage_name}.dw', stage.dw)
         block_in_scale = float(stage.dw.in_observer.scale(127.0))
         add(f'{stage_name}.pw', stage.pw, out_scale_override=block_in_scale,

@@ -35,7 +35,8 @@ def load_segmentation_model(cfg, model_path, device, quant_mode='auto'):
                            bottleneck_kernel_size=cfg.get('bottleneck_kernel_size', 5),
                            dropout_rate=cfg.get('dropout_rate', 0),
                            encoder_depth=cfg.get('encoder_depth', None),
-                           stem_stride=cfg.get('stem_stride', None))
+                           stem_stride=cfg.get('stem_stride', None),
+                           eltwise_act=cfg.get('eltwise_act', None))
     checkpoint = torch.load(model_path, map_location=device)
     state_dict = checkpoint['net'] if isinstance(checkpoint, dict) and 'net' in checkpoint else checkpoint
     net.load_state_dict(state_dict)

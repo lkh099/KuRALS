@@ -51,6 +51,15 @@ def manifest_to_cfg(manifest):
         if layer.get('upsample_after'):
             emit('[upsample]\nstride=2')
         if 'eltwise_add_with' in layer:
+            # Same constraint export_int8.py asserts (LEGAL_ELTWISE_ACTS) -- re-checked
+            # here because a manifest can reach this script without going through that
+            # path, and emitting `[shortcut] activation=leaky` would produce an
+            # npu_cfg.c the hardware cannot actually run.
+            if layer['eltwise_act'] != 'linear':
+                raise ValueError(
+                    f"{layer['name']}: [shortcut] activation={layer['eltwise_act']} is illegal -- "
+                    "an eltwise-add must be followed by a conv before any activation. Only "
+                    "activation=linear may sit on the add itself.")
             # This block is [dw, pw]; the tensor being added is whatever was emitted
             # two positions before the pw -- the preceding conv, or (for a chained
             # residual) the previous block's [shortcut], which cfg_gen.py resolves

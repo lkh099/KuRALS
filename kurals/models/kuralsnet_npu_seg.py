@@ -89,7 +89,8 @@ class KuRALSNetNPUSeg(nn.Module):
     ALIGN = 8
 
     def __init__(self, n_classes, n_frames, dataset_type='KuRALS_CW', bottleneck_ch=64, shallow_encoder=False,
-                 bottleneck_kernel_size=5, dropout_rate=0, encoder_depth=None, stem_stride=None):
+                 bottleneck_kernel_size=5, dropout_rate=0, encoder_depth=None, stem_stride=None,
+                 eltwise_act=None):
         super().__init__()
         self.n_classes = n_classes
         self.n_frames = n_frames
@@ -139,9 +140,14 @@ class KuRALSNetNPUSeg(nn.Module):
         # extent; for tiny inputs where the bottleneck is only a few cells wide (e.g. shallow_encoder
         # or a small SoC RD buffer), a 5-wide depthwise kernel mostly convolves over padding -- pass 3.
         bk = bottleneck_kernel_size
-        self.bott_c = ResidualDWSeparableBlock(bc, act='leaky', dw_kernel_size=bk)
-        self.bott_d1 = ResidualDWSeparableBlock(bc, act='leaky', dw_kernel_size=bk)
-        self.bott_d2 = ResidualDWSeparableBlock(bc, act='leaky', dw_kernel_size=bk)  # /8 (or /4 if shallow_encoder) -> P_deep
+        # eltwise_act='linear' is the NPU-legal form (the fused add has no activation
+        # stage; the next conv supplies the nonlinearity). The 'leaky' default matches
+        # every checkpoint trained so far, which export_int8.py will refuse to export --
+        # see CLAUDE.md's "Eltwise-add activation" section.
+        ea = eltwise_act
+        self.bott_c = ResidualDWSeparableBlock(bc, act='leaky', dw_kernel_size=bk, eltwise_act=ea)
+        self.bott_d1 = ResidualDWSeparableBlock(bc, act='leaky', dw_kernel_size=bk, eltwise_act=ea)
+        self.bott_d2 = ResidualDWSeparableBlock(bc, act='leaky', dw_kernel_size=bk, eltwise_act=ea)  # -> P_deep
 
         # --- Decoder: identical to KuRALSNetNPU through dec_a (/2, 24ch) ---
         self.upconv_b = DepthwiseSeparableBlock(bc, 32, act='leaky')   # /8 -> /4 (fused upsample), no concat -- plain conv, no upsample, if shallow_encoder
