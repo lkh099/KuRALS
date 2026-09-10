@@ -98,7 +98,13 @@ def upconv_block(x, arrays, L, name):
     whether this hop is followed by a concat (see export_int8.py's v14 topology --
     only upconv_a is; upconv_b/upconv_f are followed by a plain refine, no forcing)."""
     dw_out = conv_layer(x, arrays, L[f'{name}.dw'])
-    pw_out = conv_layer(dw_out, arrays, L[f'{name}.pw'])
+    pw_meta = L[f'{name}.pw']
+    pw_out = conv_layer(dw_out, arrays, pw_meta)
+    # The fused upsample only exists when the matching encoder hop actually strided
+    # (net.encoder_depth -- see export_int8.py); at reduced encoder depths this hop
+    # is a plain conv with no resolution change.
+    if not pw_meta.get('upsample_after'):
+        return pw_out
     return F.interpolate(pw_out, scale_factor=2, mode='nearest')
 
 

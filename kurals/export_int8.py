@@ -148,12 +148,14 @@ def export_kuralsnet_npu_seg(net):
     # operands. There is no further learned decoder hop after dec_a -- see
     # head_out below.
     add('upconv_b.dw', net.upconv_b.dw)
-    add('upconv_b.pw', net.upconv_b.pw, upsample_after=True)
+    # Decoder upsample count mirrors net.encoder_depth (see KuRALSNetNPUSeg.forward()):
+    # upconv_b's fused upsample only exists when both encoder hops actually strided.
+    add('upconv_b.pw', net.upconv_b.pw, upsample_after=(net.encoder_depth >= 2))
     add('refine_b.dw', net.refine_b.dw)
     add('refine_b.pw', net.refine_b.pw)
 
     add('upconv_a.dw', net.upconv_a.dw)
-    add('upconv_a.pw', net.upconv_a.pw, out_scale_override=stageA_out_scale, upsample_after=True)
+    add('upconv_a.pw', net.upconv_a.pw, out_scale_override=stageA_out_scale, upsample_after=(net.encoder_depth >= 1))
     add('dec_a.dw', net.dec_a.dw, route_source='upconv_a.pw+stageA.pw')
     add('dec_a.pw', net.dec_a.pw)
 
@@ -172,7 +174,9 @@ def export_kuralsnet_npu_seg(net):
         'input_scale': layers[0]['in_scale'],   # stem's input scale -- see quantize_input.py
         'output_scale': head_out_scale,         # head_out's output scale -- for dequantizing logits
         'output_unsigned': layers[-1]['unsigned_out'],
-        'final_upsample': 2,  # bare nearest upsample of head_out's logits, /2 -> /1 (see module docstring)
+        # bare nearest upsample of head_out's logits back to input resolution; 1 (i.e. no
+        # upsample at all) when stem_stride=1, since the head already predicts per-pixel.
+        'final_upsample': net.stem_stride,
         'topology': layers,
     }
     return arrays, manifest

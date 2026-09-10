@@ -34,8 +34,8 @@ itself writes new checkpoints.
 
 - **`8x64_anchor_0.3757_bc64/`** -- `kuralsnet_npu_seg`, block-max-pooled 8x64 SoC-buffer
   emulation, `bottleneck_ch=64` (default), `bottleneck_kernel_size=3`, `dropout_rate=0.1`,
-  finetuned from the native checkpoint above. **Current best/deployable result for the
-  8x64 target.** val dice 0.3757 / test dice 0.3635 (reproduced from a fresh training run
+  finetuned from the native checkpoint above. **Was the best 8x64 result for a long time;
+  superseded by `8x64_stemstride1_0.6401_bc64/` below.** val dice 0.3757 / test dice 0.3635 (reproduced from a fresh training run
   on 2026-08-22, matches the previously documented number to 4 decimal places).
   Config: `kurals/config_files/kuralsnet_npu_seg_8x64_kernel3_finetune_dropout.json`.
   **Read CLAUDE.md's SoC section before trusting this number as a deployment estimate --
@@ -82,7 +82,28 @@ itself writes new checkpoints.
   produced this exact checkpoint's replacement candidate; check git log / re-run status
   before treating this specific `.pt` as final. Config: `kuralsnet_npu_seg_8x64_kernel3_finetune_dropout.json`
   (same file as the anchor -- only the shared `quant.py` activation/weight-quant code
-  changed, not this config).
+  changed, not this config). **Superseded by `8x64_stemstride1_0.6401_bc64/` below**, which
+  uses the same hardware scheme and nearly doubles this number; kept only as the reference
+  point for the ceiling analysis in CLAUDE.md.
+
+- **`8x64_stemstride1_0.6401_bc64/`** -- **current best 8x64 result by a wide margin.**
+  val dice 0.6401 / test dice 0.6556 (epoch 275). Comparable only to other 8x64 entries
+  here -- the native-resolution checkpoints are scored on a different dataset (see
+  CLAUDE.md).
+  Same `2w+1` / leaky-0.125 hardware scheme as the checkpoint above, but with
+  `stem_stride=1` and `encoder_depth=1` (both `kurals/models/kuralsnet_npu_seg.py`
+  constructor params): the network stays at native 8x64 through stem/stageA/dec_a/head_out
+  and takes exactly one downsample hop to a 4x32 bottleneck, so `head_out` predicts
+  per-pixel and there is no final logit upsample at all. Independently verified outside the
+  training loop -- `test_kuralsnet_vs_cfar.py` on Test (binary fg/bg, QAT int8-simulated):
+  Prec 87.70% / Pd 73.21% / FAR 0.06% / mDice 0.8713, and the pure-integer replay
+  (`benchmark_int8_pipeline.py`, the actual deployed arithmetic) gives
+  Prec 89.02% / Pd 70.27% / mDice 0.8696. Per-class val dice
+  `[bg 0.9996, 0.8481, 0.6174, 0.0952]` -- the fourth class is ~18 pixels in val and is
+  not meaningfully learnable at that sample count. Config:
+  `kuralsnet_npu_seg_8x64_stemstride1_finetune_leaky0125_wq2x1.json`. This is the
+  checkpoint `kurals/input/kuralsnet_npu_seg_8x64.txt`'s `bias_shift`/`act_shift` values
+  were calibrated from -- they are valid for this checkpoint only.
 
 ## Not included
 

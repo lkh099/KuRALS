@@ -36,7 +36,7 @@ MODEL_CTORS = {
     'deeplabv3plus': lambda nc, nf, dt, bc=64: deeplabv3plus_resnet101(n_classes=nc, n_frames=nf),
     'hrnet': lambda nc, nf, dt, bc=64: HRNet(n_classes=nc, n_frames=nf),
     'rssnet': lambda nc, nf, dt, bc=64: RSSNet(n_classes=nc, n_frames=nf),
-    'kuralsnet_npu_seg': lambda nc, nf, dt, bc=64: KuRALSNetNPUSeg(n_classes=nc, n_frames=nf, dataset_type=dt, bottleneck_ch=bc),
+    'kuralsnet_npu_seg': lambda nc, nf, dt, bc=64, **kw: KuRALSNetNPUSeg(n_classes=nc, n_frames=nf, dataset_type=dt, bottleneck_ch=bc, **kw),
 }
 ADD_TEMP_MODELS = {'kuralsnet', 'kuralsnet_woaspp', 'kuralsnet_ada', 'kuralsnet_pkc', 'kuralsnet_adapkctheta'}
 
@@ -60,7 +60,16 @@ def main():
     paths = Paths().get()
 
     add_temp = cfg['model'] in ADD_TEMP_MODELS
-    net = MODEL_CTORS[cfg['model']](cfg['nb_classes'], cfg['nb_input_channels'], cfg['dataset'], cfg.get('bottleneck_ch', 64))
+    # kuralsnet_npu_seg's remaining ctor args reshape the architecture (kernel size) or
+    # its resolution ladder (encoder_depth/stem_stride) -- a checkpoint trained with any
+    # of them set won't load without passing them here too.
+    seg_kwargs = dict(shallow_encoder=cfg.get('shallow_encoder', False),
+                      bottleneck_kernel_size=cfg.get('bottleneck_kernel_size', 5),
+                      dropout_rate=cfg.get('dropout_rate', 0),
+                      encoder_depth=cfg.get('encoder_depth', None),
+                      stem_stride=cfg.get('stem_stride', None)) if cfg['model'] == 'kuralsnet_npu_seg' else {}
+    net = MODEL_CTORS[cfg['model']](cfg['nb_classes'], cfg['nb_input_channels'], cfg['dataset'],
+                                    cfg.get('bottleneck_ch', 64), **seg_kwargs)
     state = torch.load(args.model_path, map_location='cpu')
     net.load_state_dict(state, strict=True)
     net.to(device)

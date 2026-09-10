@@ -49,7 +49,12 @@ python -m kurals.dataset_process.resize_extracted_dataset \
 ```
 Then point `config.ini` at it (`kurals/utils/set_paths.py --cwr .../KuRALS_CW_8x64/KuRALS_CW ...`).
 
-**Current best/deployable result**: `kuralsnet_npu_seg` with `bottleneck_kernel_size=3`
+**NOTE: superseded -- see "The /2 output head was the real 8x64 ceiling" below for the
+current best (val dice 0.6401 / test dice 0.6556). The result described in this paragraph
+and everything in the subsections following it were all measured with the /2 output head,
+which is now known to have been the dominant limiter.**
+
+**Former best/deployable result**: `kuralsnet_npu_seg` with `bottleneck_kernel_size=3`
 and `dropout_rate=0.1` (both new constructor params, see the model file), initialized
 by finetuning from the native-resolution checkpoint above (partial-transfer for the
 kernel-size-mismatched bottleneck layers via `kurals/expand_kernel3.py`, since
@@ -163,7 +168,49 @@ native sources (expensive) or all widths trained from scratch with no finetune i
   is a non-issue at this resolution. Affordability doesn't imply benefit, though -- TTA
   is already measured to hurt the exact checkpoint above (0.3757 -> 0.3135).
 
-### Hardware weight-multiply datapath: `w_eff = 2*w_stored + 1` (in progress, not settled)
+### The /2 output head was the real 8x64 ceiling -- fixed by `stem_stride=1` (current best)
+
+**Current best 8x64 result: val dice 0.6401 / test dice 0.6556**
+(`checkpoints/8x64_stemstride1_0.6401_bc64/`,
+`kuralsnet_npu_seg_8x64_stemstride1_finetune_leaky0125_wq2x1.json`) -- roughly 1.7x the
+previous 8x64 record of 0.3757, achieved *under* the harder `2w+1` weight datapath below.
+Binary fg/bg vs CFAR on Test: Prec 87.70% / Pd 73.21% / FAR 0.06%. The pure-integer replay
+of the exported int8 model agrees: Prec 89.02% / Pd 70.27% / mDice 0.8696.
+
+**Do not compare these numbers to the native 124x2048 model's 0.5144 / 71.26% / 56.06%, or
+to the `kuralsnet` baseline's 81.80% / 94.83%.** Those are measured on the native-resolution
+dataset; everything in this section is measured on the 8x64 emulated one. A target occupies
+far more pixels at native resolution, which changes what a given dice or Pd means -- the two
+are different evaluation sets, not a like-for-like ranking. The only valid comparisons here
+are against other 8x64 numbers in this section.
+
+The change: `stem_stride=1` plus `encoder_depth=1` (both constructor params on
+`KuRALSNetNPUSeg`). The network stays at native 8x64 through stem/stageA/dec_a/head_out and
+takes exactly one downsample hop to a 4x32 bottleneck. Resolution ladder is {8x64, 4x32}
+only.
+
+**Why it mattered so much, and what it corrects.** With the default `stem_stride=2`,
+`head_out` predicts at /2 (4x32 for this input) and the logits are nearest-upsampled to
+8x64, so every 2x2 block of the output is identical. A target at 8x64 is one or two cells,
+and for a 1-pixel target the *best achievable* dice is `2*1/(1+4) = 0.4` even with a
+perfectly placed block -- a geometric per-class ceiling that no training recipe can lift.
+That is what the whole ~0.35 plateau below was: five runs varying freeze timing, dropout,
+and bottleneck depth all stalled at the same number because they were all probing the wrong
+variable. **The earlier conclusion in this file -- that ~0.35 was the structural cost of the
+`2w+1` weight scheme -- was wrong.** `2w+1` costs far less than that; the output-head
+geometry was doing nearly all the damage. Treat the "5/5 runs converge, therefore the
+constraint is load-bearing" reasoning below as a cautionary example: convergent negative
+results across recipe knobs are evidence the *limiting variable isn't among them*, not
+evidence that the limit is fundamental.
+
+Cost: everything runs at 4x the spatial footprint -- ~3.3M vs 0.83M MACs (0.5% of the 640M
+budget, irrelevant) and peak activation buffer ~32KB vs ~8KB (still under `cfg_gen.py`'s
+`buf_size=0x12200`, but 4x more SRAM -- relevant if silicon area rather than MAC budget is
+the binding constraint). It does remove one on-chip upsample stage. Stability is also no
+longer an issue: this run passed both the QAT transition and the observer freeze without
+collapse.
+
+### Hardware weight-multiply datapath: `w_eff = 2*w_stored + 1` (superseded analysis below)
 
 The real NPU doesn't multiply the stored int8 weight byte directly -- it transforms it
 first: `w_eff = 2*w_stored + 1` (always odd, never zero; effective range `[-255, 255]`
@@ -215,7 +262,7 @@ axis, not just a stylistic difference.
 
 ## Where things live
 
-- **Checkpoints live in this repo under `checkpoints/`** (explicitly whitelisted in `.gitignore` against the general `*.pt` exclusion -- see `checkpoints/README.md`), trimmed to `config.json` + `results/*.pt`/`*.json` (TensorBoard `boards/` logs dropped, machine-specific). Kept checkpoints are pruned to: the native best (0.5144, `checkpoints/native_best_0.5144/`), the `kuralsnet` baseline (only run that exists, `checkpoints/kuralsnet_baseline/`), and the current 8x64 best/anchor (0.3757/0.3635, kernel3+finetune+dropout, `checkpoints/8x64_anchor_0.3757_bc64/`) plus its width-sweep family (bc=32/96/128/192, `checkpoints/8x64_width_sweep/`), the oracle-ceiling reference (`checkpoints/8x64_oracle_ceiling_reference_NOT_deployable/`), and the in-progress `2*w_stored+1` weight-quantization retrain (0.3468/0.3581, not yet settled -- see the SoC section's "Hardware weight-multiply datapath" writeup, `checkpoints/8x64_leaky0125_wq2x1_0.3468_bc64/`) -- everything else this branch tried has its config's `comments` field as the record, but no surviving weights (see git log / this file's history if a specific old run's numbers are needed). New checkpoints `train.py` produces during further work still land under the `logs` path from `kurals/config_files/config.ini` (set via `kurals/utils/set_paths.py`), same as always -- only the curated set above is copied into `checkpoints/` and committed.
+- **Checkpoints live in this repo under `checkpoints/`** (explicitly whitelisted in `.gitignore` against the general `*.pt` exclusion -- see `checkpoints/README.md`), trimmed to `config.json` + `results/*.pt`/`*.json` (TensorBoard `boards/` logs dropped, machine-specific). Kept checkpoints are pruned to: the native best (0.5144, `checkpoints/native_best_0.5144/`), the `kuralsnet` baseline (only run that exists, `checkpoints/kuralsnet_baseline/`), and the current 8x64 best/anchor (0.3757/0.3635, kernel3+finetune+dropout, `checkpoints/8x64_anchor_0.3757_bc64/`) plus its width-sweep family (bc=32/96/128/192, `checkpoints/8x64_width_sweep/`), the oracle-ceiling reference (`checkpoints/8x64_oracle_ceiling_reference_NOT_deployable/`), the superseded `2*w_stored+1` weight-quantization retrain (0.3468/0.3581, `checkpoints/8x64_leaky0125_wq2x1_0.3468_bc64/`), and the current overall best (0.6401/0.6556, stem_stride=1, `checkpoints/8x64_stemstride1_0.6401_bc64/`) -- everything else this branch tried has its config's `comments` field as the record, but no surviving weights (see git log / this file's history if a specific old run's numbers are needed). New checkpoints `train.py` produces during further work still land under the `logs` path from `kurals/config_files/config.ini` (set via `kurals/utils/set_paths.py`), same as always -- only the curated set above is copied into `checkpoints/` and committed.
 - **Datasets are also NOT in this repo** (`.gitignore` excludes `*.npy`) -- regenerate the 8x64 one with `resize_extracted_dataset.py` (see the SoC section above) from a native-resolution extracted dataset.
 - **Dataset preprocessing**: `kurals/dataset_process/kuralscw_processing.py` (raw `.mat` -> native-resolution extracted dataset), `resize_extracted_dataset.py` (native -> any smaller RD buffer via block max-pooling), `cfar_detect_and_damp_dataset.py` / `oracle_detect_and_damp_dataset.py` (contrast-preservation attempts, both ruled out as deployable -- see SoC section), `cfar_normalize_dataset.py` (continuous SCR normalization, also underperformed), `build_mixed_train_dataset.py` (train-only privileged-transform dataset builder).
 - **Checkpoint adaptation for finetuning across a shape mismatch**: `expand_kernel3.py` (kernel_size 5->3), `expand_stem_channels.py` (n_frames 1->N), `expand_bottleneck_width.py` (bottleneck_ch 64->N) -- all follow the same pattern: build a fresh target-shaped model, copy every state_dict key whose shape matches the source checkpoint, random-init the rest.
