@@ -171,6 +171,14 @@ class Model(nn.Module):
                                               num_workers=self.num_workers,
                                               worker_init_fn=partial(worker_init_fn, rank=get_rank(), seed=self.numpy_seed))
                 for _, frame in enumerate(frame_dataloader):
+                    # A checkpoint saved before QAT engages was never adapted to
+                    # quantization, so it cannot be exported/deployed even if its float32
+                    # dice is the run's highest -- best-checkpoint selection below skips
+                    # those epochs entirely. Without this, any run whose float32 peak
+                    # exceeds its quantized peak silently saves a non-deployable "best".
+                    deployable = (not hasattr(self.net, 'set_quant_enabled')
+                                  or self.quant_warmup_iters is None
+                                  or iteration >= self.quant_warmup_iters)
                     if hasattr(self.net, 'set_quant_enabled'):
                         if self.quant_warmup_iters is not None and iteration == self.quant_warmup_iters:
                             self.net.set_quant_enabled(True)
@@ -269,7 +277,7 @@ class Model(nn.Module):
                                                         ))
 
                             # lt @20230522
-                            if val_metrics['range_doppler']['dice'] > best_val_dop and iteration > 0:
+                            if val_metrics['range_doppler']['dice'] > best_val_dop and iteration > 0 and deployable:
                                 best_val_dop = val_metrics['range_doppler']['dice']
                                 flag_save = True
                                 name_result.append('val_doppler')
@@ -307,7 +315,7 @@ class Model(nn.Module):
                             self.results['test_metrics'] = test_metrics
 
 
-                            if test_metrics['range_doppler']['dice'] > best_test_dop and iteration > 0:
+                            if test_metrics['range_doppler']['dice'] > best_test_dop and iteration > 0 and deployable:
                                 best_test_dop = test_metrics['range_doppler']['dice']
                                 flag_save = True
                                 name_result.append('test_doppler')
@@ -318,10 +326,13 @@ class Model(nn.Module):
                                 name_result = []
                             # Unconditional latest-epoch checkpoint, separate from the
                             # best-by-dice val_doppler/test_doppler saves above -- those
-                            # only fire on a new all-time-high dice, so a run whose QAT-
-                            # active phase never beats an earlier (possibly pre-QAT
-                            # float32, i.e. non-deployable) high-water mark leaves nothing
-                            # recoverable on disk once the process exits. Overwritten every
+                            # only fire on a new all-time-high dice, so a run whose late
+                            # phase never beats its own earlier high-water mark leaves
+                            # nothing else recoverable on disk once the process exits.
+                            # (The specific pre-QAT case this used to guard against --
+                            # a float32 peak outranking every quantized epoch, leaving a
+                            # non-deployable "best" -- is now prevented at the source by
+                            # the `deployable` predicate above.) Overwritten every
                             # validation step so it always reflects the most recent state.
                             self._save_results(['latest'])
                         self.net.train()  # Train mode after evaluation process
