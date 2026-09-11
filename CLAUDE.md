@@ -192,6 +192,17 @@ committed `kurals/input/kuralsnet_npu_seg_8x64.txt` was generated before the gua
 and contains three illegal `activation=leaky` shortcuts -- it carries a warning header and
 must not be fed to cfg_gen.py.
 
+**Outcome: option 1 was taken and it is strictly better.** `checkpoints/8x64_eltwiselinear_0.6328_bc64/`
+(`kuralsnet_npu_seg_8x64_stemstride1_eltwiselinear.json`) finetunes from the illegal
+checkpoint's own weights with `eltwise_act='linear'`. Integer replay on Test:
+Acc 0.9989 / Prec 0.9017 / Pd 0.7606 / mDice 0.8906, versus the illegal checkpoint's
+0.8902 / 0.7027 / 0.8696 -- so the legal form costs nothing and gains. It also exposed a
+real trainer bug (now fixed, see `kurals/learners/model.py`): best-by-dice selection
+counted float32 warm-up epochs, so that run's `val_doppler_model.pt` held pre-QAT weights
+while its genuinely best deployable epoch (0.6660 val, epoch 206 -- above the illegal run's
+0.6401) was never saved. The committed checkpoint is epoch 48, the best that survived;
+a re-run under the fixed selection should do better.
+
 **Replacement, in preference order.** `eltwise_act` is now a constructor param on
 `KuRALSNetNPUSeg` (and on `QuantResidualDWSeparableBlock`), defaulting to the old illegal
 behavior so existing checkpoints still load and evaluate.

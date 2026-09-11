@@ -86,7 +86,10 @@ itself writes new checkpoints.
   uses the same hardware scheme and nearly doubles this number; kept only as the reference
   point for the ceiling analysis in CLAUDE.md.
 
-- **`8x64_stemstride1_0.6401_bc64/`** -- **current best 8x64 result by a wide margin.**
+- **`8x64_stemstride1_0.6401_bc64/`** -- best 8x64 dice, but **NOT DEPLOYABLE**: its three
+  bottleneck blocks do `add -> leaky` with no conv between, which this NPU cannot run (see
+  CLAUDE.md's "Eltwise-add activation"; `export_int8.py` refuses to export it). Kept as the
+  research result and as the init for the legal variant below.
   val dice 0.6401 / test dice 0.6556 (epoch 275). Comparable only to other 8x64 entries
   here -- the native-resolution checkpoints are scored on a different dataset (see
   CLAUDE.md).
@@ -101,9 +104,27 @@ itself writes new checkpoints.
   Prec 89.02% / Pd 70.27% / mDice 0.8696. Per-class val dice
   `[bg 0.9996, 0.8481, 0.6174, 0.0952]` -- the fourth class is ~18 pixels in val and is
   not meaningfully learnable at that sample count. Config:
-  `kuralsnet_npu_seg_8x64_stemstride1_finetune_leaky0125_wq2x1.json`. This is the
-  checkpoint `kurals/input/kuralsnet_npu_seg_8x64.txt`'s `bias_shift`/`act_shift` values
-  were calibrated from -- they are valid for this checkpoint only.
+  `kuralsnet_npu_seg_8x64_stemstride1_finetune_leaky0125_wq2x1.json`.
+
+- **`8x64_eltwiselinear_0.6328_bc64/`** -- **the deployable checkpoint: same as the entry
+  above but NPU-legal.** `eltwise_act='linear'` (see CLAUDE.md's "Eltwise-add activation"),
+  finetuned directly from the 0.6401 checkpoint's own weights since the state_dict is
+  unchanged. val dice 0.6328 / test dice 0.6491 at epoch 48. Pure-integer replay on Test --
+  the actual deployed arithmetic -- gives Acc 0.9989 / Prec 0.9017 / Pd 0.7606 / FAR 0.0005
+  / mDice 0.8906, i.e. **better than the illegal checkpoint's 0.8902 / 0.7027 / 0.8696**, so
+  moving the nonlinearity after the conv cost nothing. This is the checkpoint
+  `kurals/input/kuralsnet_npu_seg_8x64.txt` and its manifest were generated from. Config:
+  `kuralsnet_npu_seg_8x64_stemstride1_eltwiselinear.json`.
+
+  Two caveats on the contents. Only `test_doppler_model.pt` is here: that run's own
+  `val_doppler_model.pt` was epoch 22, **before QAT engaged at epoch 44**, so it holds
+  float32-era weights that cannot be exported -- it is deliberately not included. And this
+  is not the best the configuration reached: the best post-QAT epoch was 0.6660 val at
+  epoch 206, above the illegal run's 0.6401, but it was never written to disk because the
+  pre-QAT float32 peak (0.6921) outranked it under the old selection rule. That rule is
+  fixed in `kurals/learners/model.py` (pre-QAT epochs are now skipped), so a re-run of this
+  same config should land nearer 0.666 -- worth doing before treating 0.6328 as this
+  architecture's ceiling.
 
 ## Not included
 
