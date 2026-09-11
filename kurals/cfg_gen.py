@@ -40,6 +40,12 @@ HEIGHT = 224
 #CUTPOINT = 14
 #WIDTH = 224
 #HEIGHT = 224
+
+# KuRALS-Net-NPU-Seg, 8x64 SoC buffer
+#INPUT_FILE = "input/kuralsnet_npu_seg_8x64.txt"
+#CUTPOINT = 3 # see that file's header + CLAUDE.md's "Row-reuse vs frame-reuse grouping"
+#WIDTH = 64
+#HEIGHT = 8
 ########################################
 
 OUTPUT_FILE = "npu_cfg.c"

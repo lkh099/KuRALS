@@ -143,8 +143,9 @@ def kuralsnet_npu_seg_int8_forward(x_int8, manifest, arrays):
 
     # stem goes straight to /2 (no skip at /1). stageA is the network's only
     # skip -- a plain, unfused conv whose stored output is read again later
-    # by dec_a's concat. down1/down2 continue to /8 as plain stride-2 convs
-    # with nothing stored.
+    # by dec_a's concat. down1/down2 continue to /8, downsampling via a fused
+    # maxpool after their depthwise conv rather than a strided one (see
+    # QuantDepthwiseSeparableBlock's docstring) -- nothing stored either way.
     x_float = conv_layer(x_float, arrays, L['stem.dw'])
     x_float = conv_layer(x_float, arrays, L['stem.pw'])
 
@@ -152,8 +153,12 @@ def kuralsnet_npu_seg_int8_forward(x_int8, manifest, arrays):
     skip = conv_layer(skip, arrays, L['stageA.pw'])
 
     x_float = conv_layer(skip, arrays, L['down1.dw'])
+    if L['down1.dw'].get('maxpool_after'):
+        x_float = F.max_pool2d(x_float, kernel_size=2, stride=2)
     x_float = conv_layer(x_float, arrays, L['down1.pw'])
     x_float = conv_layer(x_float, arrays, L['down2.dw'])
+    if L['down2.dw'].get('maxpool_after'):
+        x_float = F.max_pool2d(x_float, kernel_size=2, stride=2)
     x_float = conv_layer(x_float, arrays, L['down2.pw'])
 
     # Bottleneck: three stacked eltwise-add residual blocks.

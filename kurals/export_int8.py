@@ -128,9 +128,11 @@ def export_kuralsnet_npu_seg(net):
     add('stageA.dw', net.stageA.dw)
     stageA_out_scale = add('stageA.pw', net.stageA.pw, route_target='dec_a.dw')
 
-    add('down1.dw', net.down1.dw)
+    # maxpool_after mirrors net.down1/down2's own downsample mode (see
+    # QuantDepthwiseSeparableBlock's docstring and KuRALSNetNPUSeg.__init__).
+    add('down1.dw', net.down1.dw, maxpool_after=(net.down1.downsample == 'maxpool'))
     add('down1.pw', net.down1.pw)
-    add('down2.dw', net.down2.dw)
+    add('down2.dw', net.down2.dw, maxpool_after=(net.down2.downsample == 'maxpool'))
     add('down2.pw', net.down2.pw)
 
     # Bottleneck: eltwise-add residual blocks -- pw's output scale is forced

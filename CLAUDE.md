@@ -49,10 +49,13 @@ python -m kurals.dataset_process.resize_extracted_dataset \
 ```
 Then point `config.ini` at it (`kurals/utils/set_paths.py --cwr .../KuRALS_CW_8x64/KuRALS_CW ...`).
 
-**NOTE: superseded -- see "The /2 output head was the real 8x64 ceiling" below for the
-current best (val dice 0.6401 / test dice 0.6556). The result described in this paragraph
-and everything in the subsections following it were all measured with the /2 output head,
-which is now known to have been the dominant limiter.**
+**NOTE: superseded -- see "The /2 output head was the real 8x64 ceiling" and "Row-reuse vs
+frame-reuse grouping" below for the current deployable checkpoint (`8x64_maxpool_0.6122_bc64`,
+val dice 0.6122 / test dice 0.6749, pure-integer replay mDice 0.8736). The result described
+in this paragraph and everything in the subsections following it were all measured with the
+/2 output head, which is now known to have been the dominant limiter -- and, like every 8x64
+checkpoint before `8x64_maxpool_0.6122_bc64`, predates the row/frame-reuse dataflow rules and
+was never actually deployable either.**
 
 **Former best/deployable result**: `kuralsnet_npu_seg` with `bottleneck_kernel_size=3`
 and `dropout_rate=0.1` (both new constructor params, see the model file), initialized
@@ -225,14 +228,82 @@ behavior so existing checkpoints still load and evaluate.
 3. **Drop the residual adds entirely.** Biggest behavioral change, gives up the eltwise
    feature; only worth considering if both above fail.
 
-### The /2 output head was the real 8x64 ceiling -- fixed by `stem_stride=1` (current best)
+### Row-reuse vs frame-reuse grouping: `CUTPOINT=3`, and a forced maxpool-downsample change
 
-**Current best 8x64 result: val dice 0.6401 / test dice 0.6556**
-(`checkpoints/8x64_stemstride1_0.6401_bc64/`,
+`cfg_gen.py` splits the whole layer sequence at exactly one point, `CUTPOINT` (a plain
+`npu_idx` threshold): layers before it run in row-reuse dataflow (`dataflow_en=0`, weight
+resident, IFM streamed), layers at or after it run in frame-reuse (`dataflow_en=1`, IFM
+resident, weight streamed). Confirmed hardware rules (not inferred from the code, confirmed
+directly 2026-09-11): the row-reuse -> frame-reuse transition can happen **at most once**,
+`[route]` (concat) is legal **only inside the frame-reuse domain**, and `[shortcut]`
+(eltwise-add) may **never cross the transition at all** -- both its operands must be on the
+same side. (An earlier pass at this section incorrectly assumed `[route]` was DRAM-reload-based
+and domain-agnostic, and proposed `CUTPOINT=22` reasoning from raw IFM-vs-weight tensor size
+per layer. That reasoning is superseded -- size doesn't decide this, the three rules above do.)
+
+This model has exactly one `[route]` (the `dec_a` concat: `stageA.pw` npu_idx 3,
+`upconv_a.pw` npu_idx 19, consumer `dec_a.dw` npu_idx 20) and three `[shortcut]`s (the
+bottleneck residuals, operand pairs at npu_idx 7/9, 9/11, 11/13). The route being legal only
+in frame-reuse forces its *earliest* operand -- `stageA.pw`, npu_idx 3 -- to already be past
+the transition; since the transition is a single monotonic threshold, that pins
+**`CUTPOINT=3`** exactly (the latest value that still satisfies it, keeping `stem.dw`,
+`stem.pw`, `stageA.dw` -- npu_idx 0-2 -- as the only row-reuse layers). All three shortcuts
+then land entirely inside the resulting frame-reuse region (npu_idx >= 3) by construction, so
+they satisfy the never-cross rule for free -- no need to reason about them separately.
+
+Picking `CUTPOINT=3` was itself a pure `cfg_gen.py` scheduling/buffer-addressing parameter --
+it doesn't touch weights or arithmetic, so it required no retrain on its own. Verified by
+running `cfg_gen.py` with `INPUT_FILE=kuralsnet_npu_seg_8x64.txt`, `WIDTH=64`, `HEIGHT=8`,
+`CUTPOINT=3`: `stageA_pw` is correctly tagged `cutlayer`, `dec_a_dw` is tagged `concat`,
+`head_out` keeps `last_layer` (its DRAM-output routing, which only the frame-reuse branch's
+`is_last_layer` check performs), and Buffer1/Buffer2 both come to 32768 Bytes -- under
+`buf_size=0x12200` (74240B) with room to spare.
+
+**A fourth rule, confirmed the same day, did force an architecture change: a strided
+depthwise conv is illegal in the frame-reuse domain.** Since `CUTPOINT=3` puts everything from
+`stageA.pw` onward into frame-reuse, this directly hits `down1.dw` (npu_idx 4, stride 2 --
+and `down2.dw`, npu_idx 6, whenever `encoder_depth>=2` makes it stride too), which are
+unavoidably in that region for the same reason the route forces `CUTPOINT<=3` in the first
+place -- there's no CUTPOINT choice that exempts them without also un-satisfying the route
+rule. Fix: `QuantDepthwiseSeparableBlock` gained a `downsample` mode (`kurals/models/quant.py`)
+-- `'stride'` (the old behavior, a real stride-2 depthwise conv) or `'maxpool'` (depthwise stays
+at stride 1, a fused `maxpool(k=2)` -- already a supported NPU op, just never used by this
+model before -- does the downsampling instead). `KuRALSNetNPUSeg` now builds `down1`/`down2`
+with `downsample='maxpool'` whenever `encoder_depth` makes that stage actually stride, `'stride'`
+otherwise (stem is unaffected -- npu_idx 0 is always row-reuse regardless of `CUTPOINT`).
+`export_int8.py` tags the affected `.dw` layer `maxpool_after` (mirroring the existing
+`upsample_after` fusion), `manifest_to_cfg_input.py` emits a `[maxpool]\nsize=2\nstride=2`
+section from it (cfg_gen.py already had first-class support for this -- `maxpool_after` was a
+recognized fusion key with nothing wired to it yet), and `int8_inference.py`'s replay inserts
+the matching `F.max_pool2d`. Verified bit-exact: a from-scratch model's QAT-simulated
+`forward()` and the pure-integer `int8_inference.py` replay of its own `export_int8.py`
+manifest agree with **0.0 max absolute difference** on random input, and the full
+`export_int8.py -> manifest_to_cfg_input.py -> cfg_gen.py` chain runs clean with `down1_dw`
+now tagged `(depthwise,maxpool,)` instead of `(stride,depthwise,)`.
+
+**This does change the computation** (a strided conv and stride-1-then-maxpool are different
+functions, even though `down1`/`down2`'s depthwise conv keeps the exact same weight shape) --
+unlike the pure `CUTPOINT` parameter, existing checkpoints of this model family are not
+numerically correct under the new architecture, even though `state_dict` shapes are unchanged
+and `load_state_dict(strict=True)` will not complain. A retrain/finetune is required; see
+`checkpoints/README.md` for which checkpoint this applies to and what superseded it.
+
+`kurals/cfg_gen.py`'s workload block and `kurals/input/kuralsnet_npu_seg_8x64.txt`'s header
+carry `CUTPOINT=3` and this reasoning; both are commented-out (matching how every other
+reference workload in `cfg_gen.py` is kept) since tiny-yolov2 remains the active default.
+
+### The /2 output head was the real 8x64 ceiling -- fixed by `stem_stride=1`
+
+**val dice 0.6401 / test dice 0.6556** (`checkpoints/8x64_stemstride1_0.6401_bc64/`,
 `kuralsnet_npu_seg_8x64_stemstride1_finetune_leaky0125_wq2x1.json`) -- roughly 1.7x the
 previous 8x64 record of 0.3757, achieved *under* the harder `2w+1` weight datapath below.
 Binary fg/bg vs CFAR on Test: Prec 87.70% / Pd 73.21% / FAR 0.06%. The pure-integer replay
-of the exported int8 model agrees: Prec 89.02% / Pd 70.27% / mDice 0.8696.
+of the exported int8 model agrees: Prec 89.02% / Pd 70.27% / mDice 0.8696. **Not deployable**
+(illegal eltwise-add activation, see below) and **not the current best either** -- see
+"Eltwise-add activation" and "Row-reuse vs frame-reuse grouping" below for the two fixes and
+`checkpoints/README.md` for the current deployable checkpoint
+(`8x64_maxpool_0.6122_bc64`, integer-replay mDice 0.8736 vs. this one's 0.8696 -- comparable
+since both are the same binary-fg/bg pure-integer-replay metric, unlike the raw dice numbers).
 
 **Do not compare these numbers to the native 124x2048 model's 0.5144 / 71.26% / 56.06%, or
 to the `kuralsnet` baseline's 81.80% / 94.83%.** Those are measured on the native-resolution
@@ -319,7 +390,7 @@ axis, not just a stylistic difference.
 
 ## Where things live
 
-- **Checkpoints live in this repo under `checkpoints/`** (explicitly whitelisted in `.gitignore` against the general `*.pt` exclusion -- see `checkpoints/README.md`), trimmed to `config.json` + `results/*.pt`/`*.json` (TensorBoard `boards/` logs dropped, machine-specific). Kept checkpoints are pruned to: the native best (0.5144, `checkpoints/native_best_0.5144/`), the `kuralsnet` baseline (only run that exists, `checkpoints/kuralsnet_baseline/`), and the current 8x64 best/anchor (0.3757/0.3635, kernel3+finetune+dropout, `checkpoints/8x64_anchor_0.3757_bc64/`) plus its width-sweep family (bc=32/96/128/192, `checkpoints/8x64_width_sweep/`), the oracle-ceiling reference (`checkpoints/8x64_oracle_ceiling_reference_NOT_deployable/`), the superseded `2*w_stored+1` weight-quantization retrain (0.3468/0.3581, `checkpoints/8x64_leaky0125_wq2x1_0.3468_bc64/`), and the current overall best (0.6401/0.6556, stem_stride=1, `checkpoints/8x64_stemstride1_0.6401_bc64/`) -- everything else this branch tried has its config's `comments` field as the record, but no surviving weights (see git log / this file's history if a specific old run's numbers are needed). New checkpoints `train.py` produces during further work still land under the `logs` path from `kurals/config_files/config.ini` (set via `kurals/utils/set_paths.py`), same as always -- only the curated set above is copied into `checkpoints/` and committed.
+- **Checkpoints live in this repo under `checkpoints/`** (explicitly whitelisted in `.gitignore` against the general `*.pt` exclusion -- see `checkpoints/README.md`), trimmed to `config.json` + `results/*.pt`/`*.json` (TensorBoard `boards/` logs dropped, machine-specific). Kept checkpoints are pruned to: the native best (0.5144, `checkpoints/native_best_0.5144/`), the `kuralsnet` baseline (only run that exists, `checkpoints/kuralsnet_baseline/`), and the current 8x64 best/anchor (0.3757/0.3635, kernel3+finetune+dropout, `checkpoints/8x64_anchor_0.3757_bc64/`) plus its width-sweep family (bc=32/96/128/192, `checkpoints/8x64_width_sweep/`), the oracle-ceiling reference (`checkpoints/8x64_oracle_ceiling_reference_NOT_deployable/`), the superseded `2*w_stored+1` weight-quantization retrain (0.3468/0.3581, `checkpoints/8x64_leaky0125_wq2x1_0.3468_bc64/`), the highest-raw-dice-but-not-deployable stem_stride=1 result (0.6401/0.6556, `checkpoints/8x64_stemstride1_0.6401_bc64/`), the intermediate eltwise-fix-only checkpoint (0.6328/0.6491, also retroactively not deployable, `checkpoints/8x64_eltwiselinear_0.6328_bc64/`), and the current deployable 8x64 checkpoint (0.6122/0.6749, `checkpoints/8x64_maxpool_0.6122_bc64/`) -- everything else this branch tried has its config's `comments` field as the record, but no surviving weights (see git log / this file's history if a specific old run's numbers are needed). New checkpoints `train.py` produces during further work still land under the `logs` path from `kurals/config_files/config.ini` (set via `kurals/utils/set_paths.py`), same as always -- only the curated set above is copied into `checkpoints/` and committed.
 - **Datasets are also NOT in this repo** (`.gitignore` excludes `*.npy`) -- regenerate the 8x64 one with `resize_extracted_dataset.py` (see the SoC section above) from a native-resolution extracted dataset.
 - **Dataset preprocessing**: `kurals/dataset_process/kuralscw_processing.py` (raw `.mat` -> native-resolution extracted dataset), `resize_extracted_dataset.py` (native -> any smaller RD buffer via block max-pooling), `cfar_detect_and_damp_dataset.py` / `oracle_detect_and_damp_dataset.py` (contrast-preservation attempts, both ruled out as deployable -- see SoC section), `cfar_normalize_dataset.py` (continuous SCR normalization, also underperformed), `build_mixed_train_dataset.py` (train-only privileged-transform dataset builder).
 - **Checkpoint adaptation for finetuning across a shape mismatch**: `expand_kernel3.py` (kernel_size 5->3), `expand_stem_channels.py` (n_frames 1->N), `expand_bottleneck_width.py` (bottleneck_ch 64->N) -- all follow the same pattern: build a fresh target-shaped model, copy every state_dict key whose shape matches the source checkpoint, random-init the rest.

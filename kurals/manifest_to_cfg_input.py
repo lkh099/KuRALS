@@ -56,6 +56,8 @@ def manifest_to_cfg(manifest):
 
         if layer.get('upsample_after'):
             emit('[upsample]\nstride=2')
+        if layer.get('maxpool_after'):
+            emit('[maxpool]\nsize=2\nstride=2')
         if 'eltwise_add_with' in layer:
             # Same constraint export_int8.py asserts (LEGAL_ELTWISE_ACTS) -- re-checked
             # here because a manifest can reach this script without going through that

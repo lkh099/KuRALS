@@ -41,7 +41,10 @@ itself writes new checkpoints.
   **Read CLAUDE.md's SoC section before trusting this number as a deployment estimate --
   it's measured against an emulated dataset (block max-pooling), not real SoC hardware
   output; the real hardware computes its 8x64 grid via its own small FFT, which is not
-  numerically equivalent.**
+  numerically equivalent.** **Also, like every checkpoint before `8x64_maxpool_0.6122_bc64/`
+  below, this predates both NPU-legality fixes (eltwise-add activation and the row/frame-reuse
+  dataflow rules) -- it was never actually deployable either, despite `export_int8.py`
+  succeeding on it at the time (the guards that would have caught it didn't exist yet).**
 
 - **`8x64_width_sweep/`** -- `bottleneck_ch` in {32, 96, 128, 192} at the same 8x64
   resolution, same finetune+dropout recipe. None beat the bc=64 anchor above -- **this
@@ -106,25 +109,59 @@ itself writes new checkpoints.
   not meaningfully learnable at that sample count. Config:
   `kuralsnet_npu_seg_8x64_stemstride1_finetune_leaky0125_wq2x1.json`.
 
-- **`8x64_eltwiselinear_0.6328_bc64/`** -- **the deployable checkpoint: same as the entry
-  above but NPU-legal.** `eltwise_act='linear'` (see CLAUDE.md's "Eltwise-add activation"),
-  finetuned directly from the 0.6401 checkpoint's own weights since the state_dict is
-  unchanged. val dice 0.6328 / test dice 0.6491 at epoch 48. Pure-integer replay on Test --
-  the actual deployed arithmetic -- gives Acc 0.9989 / Prec 0.9017 / Pd 0.7606 / FAR 0.0005
-  / mDice 0.8906, i.e. **better than the illegal checkpoint's 0.8902 / 0.7027 / 0.8696**, so
-  moving the nonlinearity after the conv cost nothing. This is the checkpoint
-  `kurals/input/kuralsnet_npu_seg_8x64.txt` and its manifest were generated from. Config:
+- **`8x64_eltwiselinear_0.6328_bc64/`** -- fixes the eltwise-add activation illegality above
+  (`eltwise_act='linear'`, see CLAUDE.md's "Eltwise-add activation"), finetuned directly from
+  the 0.6401 checkpoint's own weights since the state_dict is unchanged. val dice 0.6328 /
+  test dice 0.6491 at epoch 48. Pure-integer replay on Test -- the actual deployed arithmetic
+  -- gives Acc 0.9989 / Prec 0.9017 / Pd 0.7606 / FAR 0.0005 / mDice 0.8906, i.e. better than
+  the illegal checkpoint's 0.8902 / 0.7027 / 0.8696, so moving the nonlinearity after the conv
+  cost nothing. Config: `kuralsnet_npu_seg_8x64_stemstride1_eltwiselinear.json`.
+
+  **Was briefly the deployable checkpoint; retroactively NOT DEPLOYABLE, superseded by
+  `8x64_maxpool_0.6122_bc64/` below.** It fixes the eltwise-add rule but still uses a strided
+  depthwise conv for `down1` -- illegal once the row/frame-reuse `CUTPOINT` is pinned at 3 (see
+  CLAUDE.md's "Row-reuse vs frame-reuse grouping"), which forces `down1.dw` into the
+  frame-reuse domain. That rule wasn't known when this checkpoint was trained.
+
+  Two caveats on the contents (kept for provenance, apply to this checkpoint only). Only
+  `test_doppler_model.pt` is here: that run's own `val_doppler_model.pt` was epoch 22,
+  **before QAT engaged at epoch 44**, so it holds float32-era weights that cannot be exported
+  -- it is deliberately not included. And this is not the best the configuration reached: the
+  best post-QAT epoch was 0.6660 val at epoch 206, above the illegal run's 0.6401, but it was
+  never written to disk because the pre-QAT float32 peak (0.6921) outranked it under the old
+  selection rule -- since fixed in `kurals/learners/model.py`.
+
+- **`8x64_maxpool_0.6122_bc64/`** -- **the current deployable checkpoint: fixes both the
+  eltwise-add rule above and a second illegality found the same day: a strided depthwise conv
+  is illegal in the NPU's frame-reuse domain, and this model's `dec_a` route/concat forces the
+  row->frame transition to happen at or before `stageA.pw` (`CUTPOINT=3`), which pulls
+  `down1.dw`'s stride-2 depthwise conv into that domain unavoidably.** See CLAUDE.md's
+  "Row-reuse vs frame-reuse grouping" for the full derivation. Fix: `down1` (and `down2`,
+  whenever `encoder_depth>=2` makes it stride too) now downsamples via a stride-1 depthwise
+  conv followed by a fused `maxpool(k=2)` instead of a stride-2 depthwise conv
+  (`QuantDepthwiseSeparableBlock`'s new `downsample='maxpool'` mode in
+  `kurals/models/quant.py`). Unlike the `CUTPOINT` choice itself, this changes the actual
+  computation (a strided conv and stride-1-then-maxpool are different functions, even though
+  `down1.dw`'s weight shape is unchanged), so it required a real retrain, not just a config
+  change -- finetuned from `8x64_eltwiselinear_0.6328_bc64`'s own weights (`strict=True` load
+  still succeeds, same state_dict shapes). Same config file, since `downsample` is derived
+  automatically from `encoder_depth`, not a config field:
   `kuralsnet_npu_seg_8x64_stemstride1_eltwiselinear.json`.
 
-  Two caveats on the contents. Only `test_doppler_model.pt` is here: that run's own
-  `val_doppler_model.pt` was epoch 22, **before QAT engaged at epoch 44**, so it holds
-  float32-era weights that cannot be exported -- it is deliberately not included. And this
-  is not the best the configuration reached: the best post-QAT epoch was 0.6660 val at
-  epoch 206, above the illegal run's 0.6401, but it was never written to disk because the
-  pre-QAT float32 peak (0.6921) outranked it under the old selection rule. That rule is
-  fixed in `kurals/learners/model.py` (pre-QAT epochs are now skipped), so a re-run of this
-  same config should land nearer 0.666 -- worth doing before treating 0.6328 as this
-  architecture's ceiling.
+  val dice 0.6122 / test dice 0.6749 at epoch 220 (`test_doppler_model.pt` -- the run's
+  `val_doppler_model.pt`, epoch 176, has val dice 0.6801 / test dice 0.5934; val and test
+  disagree on which epoch is better, consistent with the previously-documented 4th class
+  having only ~18 val pixels -- picked `test_doppler_model.pt` since the two are within noise
+  on the metric that actually matters, below). Pure-integer replay on Test -- the actual
+  deployed arithmetic -- gives Acc 0.9987 / Prec 0.8641 / Pd 0.7679 / FAR 0.0007 / mDice 0.8736
+  (the `val_doppler_model.pt` epoch replays to mDice 0.8726, essentially tied). **This is
+  below the retroactively-illegal 0.6328 checkpoint's 0.8906** -- the maxpool fix appears to
+  cost a modest amount of accuracy relative to a learned stride-2 conv, plausibly because
+  maxpool discards information a strided conv could have kept. Only one retrain was run; not
+  chased further (more epochs, training from scratch instead of finetuning, or a wider `down1`
+  to compensate are all untried). This is the checkpoint `kurals/input/kuralsnet_npu_seg_8x64.txt`
+  and its manifest were generated from, and the first one in this repo satisfying every known
+  NPU legality constraint (eltwise-add activation and row/frame-reuse dataflow both).
 
 ## Not included
 

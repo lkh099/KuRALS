@@ -410,20 +410,34 @@ class QuantDepthwiseSeparableBlock(nn.Module):
     dw_kernel_size: 3 (default, matches mobilenet_v1_ssd.txt) or 5 (matches
     efficientnetS_32x32.txt's MBConv blocks) -- both reference-compiled.
 
-    stride: 1 (default) or 2 -- applied to the depthwise layer only (matching
-    how every strided conv in this model works: the expensive in_ch*out_ch
-    channel-mixing stays at stride 1, only the cheap per-channel depthwise
-    pass does the actual downsampling). Used for U-Net-style encoder
-    downsampling via a real, unfused stride-2 conv rather than a fused
-    maxpool -- see KuRALSNetNPU's module docstring."""
+    stride: 1 (default) or 2 -- the depthwise layer is the one that changes
+    resolution (the expensive in_ch*out_ch channel-mixing stays at stride 1,
+    only the cheap per-channel depthwise pass does the actual downsampling).
 
-    def __init__(self, in_ch, out_ch, act='leaky', dw_kernel_size=3, stride=1):
+    downsample: 'stride' (default) applies `stride` directly to the depthwise
+    conv -- a real, unfused stride-2 conv, legal in the NPU's row-reuse
+    domain. 'maxpool' keeps the depthwise conv at stride 1 and fuses a
+    maxpool(k=stride) after it instead: the hardware does not support a
+    strided depthwise conv in the frame-reuse domain at all, and every
+    KuRALSNetNPUSeg downsampling stage below stageA lands there (its dec_a
+    route/concat forces the row->frame transition to happen at/before
+    stageA.pw -- see CLAUDE.md's "Row-reuse vs frame-reuse grouping"), so
+    'maxpool' is what down1/down2 actually use whenever they stride."""
+
+    def __init__(self, in_ch, out_ch, act='leaky', dw_kernel_size=3, stride=1, downsample='stride'):
         super().__init__()
-        self.dw = QuantConvBNAct(in_ch, in_ch, kernel_size=dw_kernel_size, stride=stride, act=act, depthwise=True)
+        assert downsample in ('stride', 'maxpool')
+        self.downsample = downsample
+        self.pool_stride = stride
+        dw_stride = stride if downsample == 'stride' else 1
+        self.dw = QuantConvBNAct(in_ch, in_ch, kernel_size=dw_kernel_size, stride=dw_stride, act=act, depthwise=True)
         self.pw = QuantConvBNAct(in_ch, out_ch, kernel_size=1, stride=1, act=act, depthwise=False)
 
     def forward(self, x):
-        return self.pw(self.dw(x))
+        x = self.dw(x)
+        if self.downsample == 'maxpool' and self.pool_stride > 1:
+            x = F.max_pool2d(x, kernel_size=self.pool_stride, stride=self.pool_stride)
+        return self.pw(x)
 
 
 class QuantResidualDWSeparableBlock(nn.Module):

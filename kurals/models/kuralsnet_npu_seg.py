@@ -5,8 +5,11 @@ head -- reproducing baseline kuralsnet's task formulation (see kuralsnet.py)
 without its NPU-illegal ops (dilated ASPP convs, ConvTranspose2d decoder,
 Conv3d stem -- none of those compile on this hardware).
 
-Backbone (stem through dec_a) is identical to KuRALSNetNPU: same blocks, same
-channel widths, /2 intermediate resolution. Only head_out differs: instead of
+Backbone (stem through dec_a) matches KuRALSNetNPU: same blocks, same channel
+widths, /2 intermediate resolution -- except down1/down2's downsampling
+mechanism (stride-2 depthwise conv there; fused maxpool here, forced by a
+hardware constraint KuRALSNetNPU predates -- see QuantDepthwiseSeparableBlock's
+docstring). Only head_out otherwise differs: instead of
 (n_classes - 1) heatmap channels + 2 offset channels decoded via sigmoid +
 CenterNet point-NMS, this outputs n_classes raw per-pixel logits (background
 included, index 0) decoded via argmax off-NPU, matching kuralsnet.py's own
@@ -129,11 +132,18 @@ class KuRALSNetNPUSeg(nn.Module):
         # inputs tiny enough that even /4 leaves too little spatial extent (e.g. the SoC
         # 8x64 buffer's 8-wide Doppler axis -> 2 at /4, 1 at /8). Matching decoder upsamples
         # are dropped symmetrically below.
-        self.down1 = DepthwiseSeparableBlock(32, 64, act='leaky', stride=2 if self.encoder_depth >= 1 else 1)  # /2 -> /4
+        # downsample='maxpool' whenever this stage actually strides: it lands in the NPU's
+        # frame-reuse domain (dec_a's route forces the row->frame transition to happen at or
+        # before stageA.pw, and down1/down2 both come after that -- see CLAUDE.md's "Row-reuse
+        # vs frame-reuse grouping"), where a strided depthwise conv is illegal. See
+        # QuantDepthwiseSeparableBlock's docstring.
+        self.down1 = DepthwiseSeparableBlock(32, 64, act='leaky', stride=2 if self.encoder_depth >= 1 else 1,
+                                              downsample='maxpool' if self.encoder_depth >= 1 else 'stride')  # /2 -> /4
         # encoder_depth<=1 drops this stage's stride (/4 -> /4 instead of /4 -> /8) --
         # for inputs already tiny enough that /8 leaves near-zero bottleneck spatial extent
         # (e.g. an 8-wide axis -> 1 at /8). upconv_b's upsample is dropped to match (below).
-        self.down2 = DepthwiseSeparableBlock(64, bc, act='leaky', stride=2 if self.encoder_depth >= 2 else 1)
+        self.down2 = DepthwiseSeparableBlock(64, bc, act='leaky', stride=2 if self.encoder_depth >= 2 else 1,
+                                              downsample='maxpool' if self.encoder_depth >= 2 else 'stride')
 
         # --- Bottleneck: identical to KuRALSNetNPU when bottleneck_ch=64, bottleneck_kernel_size=5 ---
         # bottleneck_kernel_size default 5 was tuned for the /8-resolution bottleneck's spatial
