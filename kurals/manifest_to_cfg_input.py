@@ -44,8 +44,14 @@ def manifest_to_cfg(manifest):
         if layer['depthwise']:
             block.append('depthwise=1')
         block += [f"activation={layer['act_name']}",
-                  f"bias_shift={layer['shift2']}",
-                  f"act_shift={layer['shift1']}"]
+                  # bias_shift is applied to acc*scale BEFORE the bias add and
+                  # act_shift AFTER it -- see batch_norm_quant_act.sv, whose chain
+                  # is var_shifter(bias_shift) -> +bias -> var_shifter1(act_shift).
+                  # So bias_shift is shift1 and act_shift is shift2, not the
+                  # reverse. Emitted the other way round, every layer's output
+                  # saturated to -128 on real hardware (NPU8, KuRALS 8x64).
+                  f"bias_shift={layer['shift1']}",
+                  f"act_shift={layer['shift2']}"]
         emit('\n'.join(block))
 
         if layer.get('upsample_after'):
