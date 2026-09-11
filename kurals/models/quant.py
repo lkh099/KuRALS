@@ -3,9 +3,9 @@ activation pipeline (as specified for this NPU):
 
     acc = conv(x_int8, w_int8)                 # integer accumulator
     t1  = acc * scale[c]                       # scale[c]: signed int16, per out-channel
-    t2  = t1 >> shift1                          # shift1 == "act_shift" register field, in [5, 20], truncating (floor), no rounding
+    t2  = t1 >> shift1                          # shift1 == "bias_shift" register field, in [5, 20], truncating (floor), no rounding
     t3  = t2 + bias[c]                          # bias[c]: signed int16, per out-channel
-    t4  = t3 >> shift2                          # shift2 == "bias_shift" register field, in [0, 7], truncating (floor), no rounding
+    t4  = t3 >> shift2                          # shift2 == "act_shift" register field, in [0, 7], truncating (floor), no rounding
     out = activation(t4)                        # leaky / relu / linear
     next_x = clamp_int8_or_uint8(out)            # signed unless activation == 'relu'
 
@@ -14,7 +14,7 @@ for either weights or activations), so quantization is symmetric throughout:
 signed int8 weights, int8/uint8 activations, no bias correction term.
 
 Both shift1 and shift2 are single values *per layer* (not per channel) -- the
-hardware register only carries one act_shift/bias_shift per convolutional
+hardware register only carries one bias_shift/act_shift per convolutional
 layer, while scale/bias vary per output channel. All the per-channel weight
 scale variation is therefore absorbed into scale[c] (with a shift shared
 across channels); bias[c] shares the layer's single bias-domain scale.
@@ -187,10 +187,19 @@ class QuantConvBNAct(nn.Module):
     # Hardware register field constraints (cfg_gen.py's NPU spec). Named asserts
     # below are a deliberate tripwire: editing either tuple without also updating
     # its assert fails loudly at import time, instead of silently drifting.
-    SHIFT1_RANGE = (5, 20)   # "act_shift" register field: scale-multiply shift
-    SHIFT2_RANGE = (0, 7)    # "bias_shift" register field: bias-add shift
-    assert SHIFT1_RANGE == (5, 20), "act_shift legal range is (5, 20) per NPU spec -- do not widen without re-verifying against cfg_gen.py"
-    assert SHIFT2_RANGE == (0, 7), "bias_shift legal range is (0, 7) per NPU spec -- do not widen without re-verifying against cfg_gen.py"
+    # NAMING, verified against the RTL (batch_norm_quant_act.sv), because it is the
+    # reverse of what you would guess: the chain is var_shifter(bias_shift) -> +bias ->
+    # var_shifter1(act_shift), so the shift applied BEFORE the bias add is the one the
+    # register map calls "bias_shift" (= shift1 here), and the one applied AFTER it is
+    # "act_shift" (= shift2). This file previously had the two labels swapped, which is
+    # how kurals/manifest_to_cfg_input.py came to emit them the wrong way round -- every
+    # layer's output saturated to -128 on real hardware before that was caught. The
+    # reference input/tiny_yolov2 cfg corroborates the correct mapping: bias_shift=19
+    # (in shift1's [5, 20] range), act_shift=4 (in shift2's [0, 7] range).
+    SHIFT1_RANGE = (5, 20)   # "bias_shift" register field: scale-multiply shift, pre-bias-add
+    SHIFT2_RANGE = (0, 7)    # "act_shift" register field: post-bias-add shift
+    assert SHIFT1_RANGE == (5, 20), "bias_shift legal range is (5, 20) per NPU spec -- do not widen without re-verifying against cfg_gen.py"
+    assert SHIFT2_RANGE == (0, 7), "act_shift legal range is (0, 7) per NPU spec -- do not widen without re-verifying against cfg_gen.py"
 
     def __init__(self, in_ch, out_ch, kernel_size=3, stride=1, act='leaky', depthwise=False,
                  out_percentile=None, in_edge_margin=None):
