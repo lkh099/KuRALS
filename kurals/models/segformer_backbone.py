@@ -79,10 +79,57 @@ class GELU(nn.Module):
     def forward(self, x):
         return 0.5 * x * (1 + torch.tanh(np.sqrt(2 / np.pi) * (x + 0.044715 * torch.pow(x,3))))
 
+def plan_geometry(input_size, sr_ratios, stock_strides=(4, 2, 2, 2), patch_sizes=(7, 3, 3, 3),
+                  stem_stride=None):
+    """Per-stage patch-embed strides and per-axis attention sr_ratios.
+
+    Stock SegFormer assumes a large, roughly square input: a stride-4 stem,
+    three stride-2 stages, and square spatial reductions of 8/4/2/1. On an
+    8x64 RD map that stem leaves stage 1 at 2x16, where the sr_ratio=8
+    reduction conv (kernel_size=8) does not fit the height and cannot even be
+    built. Here each axis is downsampled only while at least 2 cells survive
+    the stage, the stem's stride 4 is softened to 2 on any axis shorter than
+    32 so a short axis is not spent all at once, and every sr_ratio is
+    clamped to its own feature map. input_size=None reproduces the stock
+    square schedule exactly.
+
+    stem_stride overrides stage 1's stride. The default softens the stock
+    stride 4 to 2 on any axis under 32, which buys a finer c1 for the decoder
+    (4x16 rather than 2x16 at 8x64, worth having when a target is one or two
+    cells wide) at the cost of a discontinuity: 16x64 and 32x64 then plan to
+    the same feature maps, so a resolution sweep across them shows no change.
+    Pass stem_stride=4 for SegFormer's unsoftened stem, which keeps the sweep
+    monotone in exchange for a coarser map at 8x64.
+    """
+    if input_size is None:
+        return list(stock_strides), [(r, r) for r in sr_ratios], None
+    sizes = list(input_size)
+    strides, srs, stage_sizes = [], [], []
+    for stage, (want, k) in enumerate(zip(stock_strides, patch_sizes)):
+        st = []
+        override = stem_stride if stage == 0 else None
+        if override is not None and not isinstance(override, (tuple, list)):
+            override = (override, override)
+        for axis, n in enumerate(sizes):
+            if override is not None:
+                step = override[axis]
+            else:
+                step = 2 if (want == 4 and n < 32) else want
+            while step > 1 and n // step < 2:
+                step //= 2
+            st.append(max(1, step))
+        sizes = [(n + 2 * (k // 2) - k) // step + 1 for n, step in zip(sizes, st)]
+        strides.append(tuple(st))
+        srs.append(tuple(min(sr_ratios[stage], n) for n in sizes))
+        stage_sizes.append(tuple(sizes))
+    return strides, srs, stage_sizes
+
+
 class OverlapPatchEmbed(nn.Module):
     def __init__(self, patch_size=7, stride=4, in_chans=3, embed_dim=768):
         super().__init__()
-        patch_size  = (patch_size, patch_size)
+        patch_size  = tuple(patch_size) if isinstance(patch_size, (tuple, list)) else (patch_size, patch_size)
+        stride      = tuple(stride) if isinstance(stride, (tuple, list)) else (stride, stride)
         self.proj   = nn.Conv2d(in_chans, embed_dim, kernel_size=patch_size, stride=stride,
                               padding=(patch_size[0] // 2, patch_size[1] // 2))
         self.norm   = nn.LayerNorm(embed_dim)
@@ -135,9 +182,10 @@ class Attention(nn.Module):
 
         self.q          = nn.Linear(dim, dim, bias=qkv_bias)
         
-        self.sr_ratio = sr_ratio
-        if sr_ratio > 1:
-            self.sr     = nn.Conv2d(dim, dim, kernel_size=sr_ratio, stride=sr_ratio)
+        sr            = tuple(sr_ratio) if isinstance(sr_ratio, (tuple, list)) else (sr_ratio, sr_ratio)
+        self.sr_ratio = sr
+        if sr[0] > 1 or sr[1] > 1:
+            self.sr     = nn.Conv2d(dim, dim, kernel_size=sr, stride=sr)
             self.norm   = nn.LayerNorm(dim)
         self.kv         = nn.Linear(dim, dim * 2, bias=qkv_bias)
         
@@ -168,7 +216,7 @@ class Attention(nn.Module):
         # bs, 16384, 32 => bs, 16384, 32 => bs, 16384, 8, 4 => bs, 8, 16384, 4
         q = self.q(x).reshape(B, N, self.num_heads, C // self.num_heads).permute(0, 2, 1, 3)
 
-        if self.sr_ratio > 1:
+        if hasattr(self, 'sr'):
             # bs, 16384, 32 => bs, 32, 128, 128
             x_ = x.permute(0, 2, 1).reshape(B, C, H, W)
             # bs, 32, 128, 128 => bs, 32, 16, 16 => bs, 256, 32
@@ -314,10 +362,20 @@ class MixVisionTransformer(nn.Module):
     def __init__(self, in_chans=3, num_classes=1000, embed_dims=[32, 64, 160, 256],
                  num_heads=[1, 2, 4, 8], mlp_ratios=[4, 4, 4, 4], qkv_bias=False, qk_scale=None, drop_rate=0.,
                  attn_drop_rate=0., drop_path_rate=0., norm_layer=nn.LayerNorm,
-                 depths=[3, 4, 6, 3], sr_ratios=[8, 4, 2, 1]):
+                 depths=[3, 4, 6, 3], sr_ratios=[8, 4, 2, 1], input_size=None, stem_stride=None):
         super().__init__()
         self.num_classes    = num_classes
         self.depths         = depths
+
+        #----------------------------------#
+        #   每个阶段的下采样步长与注意力压缩率，按输入尺寸规划
+        #   (per-stage strides / sr_ratios, planned from the input geometry)
+        #----------------------------------#
+        strides, srs, stage_sizes = plan_geometry(input_size, sr_ratios, stem_stride=stem_stride)
+        self.input_size  = input_size
+        self.strides     = strides
+        self.sr_plan     = srs
+        self.stage_sizes = stage_sizes
 
         #----------------------------------#
         #   Transformer模块，共有四个部分
@@ -331,7 +389,7 @@ class MixVisionTransformer(nn.Module):
         #   对输入图像进行分区，并下采样
         #   512, 512, 3 => 128, 128, 32 => 16384, 32
         #-----------------------------------------------#
-        self.patch_embed1 = OverlapPatchEmbed(patch_size=7, stride=4, in_chans=in_chans, embed_dim=embed_dims[0])
+        self.patch_embed1 = OverlapPatchEmbed(patch_size=7, stride=strides[0], in_chans=in_chans, embed_dim=embed_dims[0])
         #-----------------------------------------------#
         #   利用transformer模块进行特征提取
         #   16384, 32 => 16384, 32
@@ -341,7 +399,7 @@ class MixVisionTransformer(nn.Module):
             [
                 Block(
                     dim=embed_dims[0], num_heads=num_heads[0], mlp_ratio=mlp_ratios[0], qkv_bias=qkv_bias, qk_scale=qk_scale,
-                    drop=drop_rate, attn_drop=attn_drop_rate, drop_path=dpr[cur + i], norm_layer=norm_layer, sr_ratio=sr_ratios[0]
+                    drop=drop_rate, attn_drop=attn_drop_rate, drop_path=dpr[cur + i], norm_layer=norm_layer, sr_ratio=srs[0]
                 )
                 for i in range(depths[0])
             ]
@@ -355,7 +413,7 @@ class MixVisionTransformer(nn.Module):
         #   对输入图像进行分区，并下采样
         #   128, 128, 32 => 64, 64, 64 => 4096, 64
         #-----------------------------------------------#
-        self.patch_embed2 = OverlapPatchEmbed(patch_size=3, stride=2, in_chans=embed_dims[0], embed_dim=embed_dims[1])
+        self.patch_embed2 = OverlapPatchEmbed(patch_size=3, stride=strides[1], in_chans=embed_dims[0], embed_dim=embed_dims[1])
         #-----------------------------------------------#
         #   利用transformer模块进行特征提取
         #   4096, 64 => 4096, 64
@@ -365,7 +423,7 @@ class MixVisionTransformer(nn.Module):
             [
                 Block(
                     dim=embed_dims[1], num_heads=num_heads[1], mlp_ratio=mlp_ratios[1], qkv_bias=qkv_bias, qk_scale=qk_scale,
-                    drop=drop_rate, attn_drop=attn_drop_rate, drop_path=dpr[cur + i], norm_layer=norm_layer, sr_ratio=sr_ratios[1]
+                    drop=drop_rate, attn_drop=attn_drop_rate, drop_path=dpr[cur + i], norm_layer=norm_layer, sr_ratio=srs[1]
                 )
                 for i in range(depths[1])
             ]
@@ -379,7 +437,7 @@ class MixVisionTransformer(nn.Module):
         #   对输入图像进行分区，并下采样
         #   64, 64, 64 => 32, 32, 160 => 1024, 160
         #-----------------------------------------------#
-        self.patch_embed3 = OverlapPatchEmbed(patch_size=3, stride=2, in_chans=embed_dims[1], embed_dim=embed_dims[2])
+        self.patch_embed3 = OverlapPatchEmbed(patch_size=3, stride=strides[2], in_chans=embed_dims[1], embed_dim=embed_dims[2])
         #-----------------------------------------------#
         #   利用transformer模块进行特征提取
         #   1024, 160 => 1024, 160
@@ -389,7 +447,7 @@ class MixVisionTransformer(nn.Module):
             [
                 Block(
                     dim=embed_dims[2], num_heads=num_heads[2], mlp_ratio=mlp_ratios[2], qkv_bias=qkv_bias, qk_scale=qk_scale,
-                    drop=drop_rate, attn_drop=attn_drop_rate, drop_path=dpr[cur + i], norm_layer=norm_layer, sr_ratio=sr_ratios[2]
+                    drop=drop_rate, attn_drop=attn_drop_rate, drop_path=dpr[cur + i], norm_layer=norm_layer, sr_ratio=srs[2]
                 )
                 for i in range(depths[2])
             ]
@@ -403,7 +461,7 @@ class MixVisionTransformer(nn.Module):
         #   对输入图像进行分区，并下采样
         #   32, 32, 160 => 16, 16, 256 => 256, 256
         #-----------------------------------------------#
-        self.patch_embed4 = OverlapPatchEmbed(patch_size=3, stride=2, in_chans=embed_dims[2], embed_dim=embed_dims[3])
+        self.patch_embed4 = OverlapPatchEmbed(patch_size=3, stride=strides[3], in_chans=embed_dims[2], embed_dim=embed_dims[3])
         #-----------------------------------------------#
         #   利用transformer模块进行特征提取
         #   256, 256 => 256, 256
@@ -413,7 +471,7 @@ class MixVisionTransformer(nn.Module):
             [
                 Block(
                     dim=embed_dims[3], num_heads=num_heads[3], mlp_ratio=mlp_ratios[3], qkv_bias=qkv_bias, qk_scale=qk_scale,
-                    drop=drop_rate, attn_drop=attn_drop_rate, drop_path=dpr[cur + i], norm_layer=norm_layer, sr_ratio=sr_ratios[3]
+                    drop=drop_rate, attn_drop=attn_drop_rate, drop_path=dpr[cur + i], norm_layer=norm_layer, sr_ratio=srs[3]
                 )
                 for i in range(depths[3])
             ]
@@ -484,9 +542,9 @@ class MixVisionTransformer(nn.Module):
         return outs
 
 class mit_b0(MixVisionTransformer):
-    def __init__(self, in_chans=5, pretrained = False):
+    def __init__(self, in_chans=5, pretrained = False, input_size=None, stem_stride=None):
         super(mit_b0, self).__init__(
-            in_chans=in_chans, embed_dims=[32, 64, 160, 256], num_heads=[1, 2, 5, 8], mlp_ratios=[4, 4, 4, 4],
+            input_size=input_size, stem_stride=stem_stride, in_chans=in_chans, embed_dims=[32, 64, 160, 256], num_heads=[1, 2, 5, 8], mlp_ratios=[4, 4, 4, 4],
             qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6), depths=[2, 2, 2, 2], sr_ratios=[8, 4, 2, 1],
             drop_rate=0.0, drop_path_rate=0.1)
         if pretrained:
@@ -494,9 +552,9 @@ class mit_b0(MixVisionTransformer):
             self.load_state_dict(torch.load("model_data/segformer_b0_backbone_weights.pth"), strict=False)
 
 class mit_b1(MixVisionTransformer):
-    def __init__(self, in_chans=5, pretrained = False):
+    def __init__(self, in_chans=5, pretrained = False, input_size=None, stem_stride=None):
         super(mit_b1, self).__init__(
-            in_chans=in_chans, embed_dims=[64, 128, 320, 512], num_heads=[1, 2, 5, 8], mlp_ratios=[4, 4, 4, 4],
+            input_size=input_size, stem_stride=stem_stride, in_chans=in_chans, embed_dims=[64, 128, 320, 512], num_heads=[1, 2, 5, 8], mlp_ratios=[4, 4, 4, 4],
             qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6), depths=[2, 2, 2, 2], sr_ratios=[8, 4, 2, 1],
             drop_rate=0.0, drop_path_rate=0.1)
         if pretrained:
@@ -504,9 +562,9 @@ class mit_b1(MixVisionTransformer):
             self.load_state_dict(torch.load("model_data/segformer_b1_backbone_weights.pth"), strict=False)
 
 class mit_b2(MixVisionTransformer):
-    def __init__(self, in_chans=5, pretrained = False):
+    def __init__(self, in_chans=5, pretrained = False, input_size=None, stem_stride=None):
         super(mit_b2, self).__init__(
-            in_chans=in_chans, embed_dims=[64, 128, 320, 512], num_heads=[1, 2, 5, 8], mlp_ratios=[4, 4, 4, 4],
+            input_size=input_size, stem_stride=stem_stride, in_chans=in_chans, embed_dims=[64, 128, 320, 512], num_heads=[1, 2, 5, 8], mlp_ratios=[4, 4, 4, 4],
             qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6), depths=[3, 4, 6, 3], sr_ratios=[8, 4, 2, 1],
             drop_rate=0.0, drop_path_rate=0.1)
         if pretrained:
@@ -514,9 +572,9 @@ class mit_b2(MixVisionTransformer):
             self.load_state_dict(torch.load("model_data/segformer_b2_backbone_weights.pth"), strict=False)
 
 class mit_b3(MixVisionTransformer):
-    def __init__(self, in_chans=5, pretrained = False):
+    def __init__(self, in_chans=5, pretrained = False, input_size=None, stem_stride=None):
         super(mit_b3, self).__init__(
-            in_chans=in_chans, embed_dims=[64, 128, 320, 512], num_heads=[1, 2, 5, 8], mlp_ratios=[4, 4, 4, 4],
+            input_size=input_size, stem_stride=stem_stride, in_chans=in_chans, embed_dims=[64, 128, 320, 512], num_heads=[1, 2, 5, 8], mlp_ratios=[4, 4, 4, 4],
             qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6), depths=[3, 4, 18, 3], sr_ratios=[8, 4, 2, 1],
             drop_rate=0.0, drop_path_rate=0.1)
         if pretrained:
@@ -524,9 +582,9 @@ class mit_b3(MixVisionTransformer):
             self.load_state_dict(torch.load("model_data/segformer_b3_backbone_weights.pth"), strict=False)
 
 class mit_b4(MixVisionTransformer):
-    def __init__(self, in_chans=5, pretrained = False):
+    def __init__(self, in_chans=5, pretrained = False, input_size=None, stem_stride=None):
         super(mit_b4, self).__init__(
-            in_chans=in_chans, embed_dims=[64, 128, 320, 512], num_heads=[1, 2, 5, 8], mlp_ratios=[4, 4, 4, 4],
+            input_size=input_size, stem_stride=stem_stride, in_chans=in_chans, embed_dims=[64, 128, 320, 512], num_heads=[1, 2, 5, 8], mlp_ratios=[4, 4, 4, 4],
             qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6), depths=[3, 8, 27, 3], sr_ratios=[8, 4, 2, 1],
             drop_rate=0.0, drop_path_rate=0.1)
         if pretrained:
@@ -534,9 +592,9 @@ class mit_b4(MixVisionTransformer):
             self.load_state_dict(torch.load("model_data/segformer_b4_backbone_weights.pth"), strict=False)
 
 class mit_b5(MixVisionTransformer):
-    def __init__(self, in_chans=5, pretrained = False):
+    def __init__(self, in_chans=5, pretrained = False, input_size=None, stem_stride=None):
         super(mit_b5, self).__init__(
-            in_chans=in_chans, embed_dims=[64, 128, 320, 512], num_heads=[1, 2, 5, 8], mlp_ratios=[4, 4, 4, 4],
+            input_size=input_size, stem_stride=stem_stride, in_chans=in_chans, embed_dims=[64, 128, 320, 512], num_heads=[1, 2, 5, 8], mlp_ratios=[4, 4, 4, 4],
             qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6), depths=[3, 6, 40, 3], sr_ratios=[8, 4, 2, 1],
             drop_rate=0.0, drop_path_rate=0.1)
         if pretrained:

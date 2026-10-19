@@ -400,3 +400,15 @@ def count_params(model):
     model_parameters = filter(lambda p: p.requires_grad, model.parameters())
     nb_params = sum([np.prod(p.size()) for p in model_parameters])
     return nb_params
+
+def rd_input_size(cfg):
+    """(H, W) of the model input, or None for the stock >=32x32 geometry.
+
+    unet/segformer plan their per-axis downsampling from this: at 8x64 a
+    square schedule collapses the Doppler axis (U-Net's 4th maxpool) or asks
+    for a spatial-reduction kernel larger than the feature map (SegFormer's
+    sr_ratio=8). Driven by the config's own rd_size, which is null in the
+    256x256 configs and so changes nothing there.
+    """
+    size = cfg.get('rd_size')
+    return tuple(size) if size else None

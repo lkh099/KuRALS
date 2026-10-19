@@ -10,7 +10,7 @@ from tqdm import tqdm
 import time
 
 from kurals.utils.paths import Paths
-from kurals.utils.functions import count_params, normalize
+from kurals.utils.functions import count_params, normalize, rd_input_size
 from kurals.utils import profiler
 from kurals.utils.profiler import timings
 from kurals.learners.tester import Tester
@@ -28,6 +28,8 @@ def test_model():
     parser.add_argument('--mode', default=['flops', 'speed'], help='memory, flops, speed', nargs='+', type=str)
     parser.add_argument('--nb_classes', default=4, help='number of classes.', type=int)
     parser.add_argument('--nb_input_channels', default=1, help='number of input channels.', type=int)
+    parser.add_argument('--rd_size', default=None, nargs=2, type=int,
+                        help='input (H, W), e.g. --rd_size 8 64; omit for the stock >=32x32 geometry.')
     args = parser.parse_args()
 
     print(args)
@@ -74,7 +76,8 @@ def test_model():
                     n_frames=args.nb_input_channels)
     elif args.model == 'unet':
         model = UNet(n_classes=args.nb_classes, 
-                    n_frames=args.nb_input_channels)
+                    n_frames=args.nb_input_channels,
+                    input_size=rd_input_size(vars(args)))
     elif args.model == 'deeplabv3plus':
         model = deeplabv3plus_resnet101(n_classes=args.nb_classes, 
                     n_frames=args.nb_input_channels)
@@ -88,7 +91,8 @@ def test_model():
         model = SegFormer(n_classes=args.nb_classes, 
                     n_frames=args.nb_input_channels,
                    phi='b1',
-                   pretrained=False)
+                   pretrained=False,
+                   input_size=rd_input_size(vars(args)))
     elif args.model == 'swin':
         model = Swin(n_classes=args.nb_classes, 
                     n_frames=args.nb_input_channels,

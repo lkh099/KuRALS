@@ -83,13 +83,20 @@ class SegFormerHead(nn.Module):
         return x
 
 class SegFormer(nn.Module):
-    def __init__(self, n_classes=4, n_frames=5, phi = 'b0', pretrained = False):
+    def __init__(self, n_classes=4, n_frames=5, phi = 'b0', pretrained = False, input_size=None,
+                 stem_stride=None):
         """
         Args:
             n_classes (int, optional): _description_. Defaults to 4.
             n_frames (int, optional): _description_. Defaults to 5.
             phi (str, optional): _description_. Defaults to 'b0'.
             pretrained (bool, optional): _description_. Defaults to False.
+            input_size (tuple, optional): (H, W) of the input, used to plan the
+                backbone's per-axis strides and attention spatial reductions.
+                None keeps the stock square schedule, which requires an input
+                of at least 32x32.
+            stem_stride (optional): override for stage 1's stride; see
+                segformer_backbone.plan_geometry. None auto-plans it.
         
         adapted from https://github.com/bubbliiiing/segformer-pytorch/blob/master/nets/segformer.py
         """
@@ -101,7 +108,7 @@ class SegFormer(nn.Module):
         self.backbone   = {
             'b0': mit_b0, 'b1': mit_b1, 'b2': mit_b2,
             'b3': mit_b3, 'b4': mit_b4, 'b5': mit_b5,
-        }[phi](n_frames, pretrained)
+        }[phi](n_frames, pretrained, input_size=input_size, stem_stride=stem_stride)
         self.embedding_dim   = {
             'b0': 256, 'b1': 256, 'b2': 768,
             'b3': 768, 'b4': 768, 'b5': 768,

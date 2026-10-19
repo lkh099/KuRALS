@@ -375,6 +375,56 @@ treating either checkpoint from this scheme as final, and don't assume a full 30
 run under this scheme is safe just because early/mid-training dice looks fine (same
 lesson as the oracle-ceiling section above, different mechanism).
 
+### Baseline comparison at 8x64: `unet` and `segformer` could not run at all
+
+Both external baselines in `kurals/models/` were unrunnable at the 8x64 SoC buffer, for
+two unrelated geometric reasons, and both died at construction or first forward rather
+than degrading -- a baseline sweep launched against them would have crashed immediately:
+
+- **`unet`**: four `MaxPool2d(2)` stages take the Doppler axis 8 -> 4 -> 2 -> 1 -> **0**
+  (`RuntimeError: Given input size: (512x1x8). Calculated output size: (512x0x4)`). Broken
+  at 8x64 only; 16x64 and 32x64 were already fine.
+- **`segformer`** (b0): the stride-4 stem leaves stage 1 at 2x16, where `Attention` builds
+  its spatial reduction as `Conv2d(kernel_size=sr_ratio, stride=sr_ratio)` with
+  `sr_ratio=8` -- kernel larger than the feature map, so the layer cannot even be
+  constructed (`Kernel size can't be greater than actual input size`). Broken at 8x64
+  *and* 16x64; only 32x64 was fine.
+
+Fixed by having both plan their downsampling per axis from an optional `input_size=(H, W)`.
+`unet.pool_plan()` halves an axis only while >=2 cells survive (8x64 gives
+`[(2,2), (2,2), (2,2), (1,2)]`, so range keeps downsampling after Doppler bottoms out),
+and `segformer_backbone.plan_geometry()` plans per-axis patch-embed strides and clamps
+every `sr_ratio` to its own feature map. `Up` now interpolates to the skip connection's
+own size rather than by a fixed factor of 2, which inverts an anisotropic encoder exactly
+and replaces the old one-off `F.pad` crop; `OverlapPatchEmbed` and `Attention` accept
+per-axis tuples. Channel widths are untouched, so both keep their published parameter
+counts (17,262,020 and 3,712,036).
+
+**`input_size=None` reproduces the pre-fix models exactly.** Verified at 256x256 against
+the pre-patch files: identical state_dict keys *and* values, and `max|output diff| = 0`
+for both. Every existing config has `rd_size: null`, so nothing in this repo changes
+behaviour; an 8x64 baseline run needs `rd_size: [8, 64]` in its config, which
+`rd_input_size()` (`kurals/utils/functions.py`) feeds to `train.py` / `test.py` /
+`flops_fps.py` (the last also gained `--rd_size H W`).
+
+**Trap for the resolution ablation.** `plan_geometry`'s default softens segformer's stock
+stride-4 stem to 2 on any axis under 32. That buys a finer c1 for the decoder (4x16 rather
+than 2x16 at 8x64 -- the same sub-cell localization argument as `stem_stride=1` above), at
+the cost of a discontinuity: 16x64 and 32x64 then plan to *identical* feature maps, so a
+resolution sweep across them shows **no change whatsoever** (56.27 MMAC for both). Pass
+`stem_stride=4` for a monotone sweep (25.61 / 35.14 / 56.27 MMAC at 8x64 / 16x64 / 32x64);
+that is also segformer's unmodified stem and so the more defensible baseline. Per-stage
+strides, sr_ratios, feature maps, params, MACs and peak activation bytes for every
+combination are in `test_results/baseline_geometry_8x64.json`.
+
+Scale caveat for whatever comparison table these feed. At 8x64, `unet` is 17.26M params /
+321.29 MMAC and `fcn8s` is 134.28M / 409.29 MMAC, against `kuralsnet_npu_seg`'s 34.2k /
+5.35 MMAC -- 508x and 3925x the parameters. These are not scale-matched baselines and
+should not be presented as though they were. MACs here are Conv2d+Linear multiply-
+accumulates for one frame, consistent across every row of that JSON but **not** the same
+accounting as the native model's 638.12M/640M figure quoted above. `kuralsnet` itself
+still wants a 5D RAD input and was not touched.
+
 ### Normalization methodology note
 
 The established anchor config uses `norm_type: "tvt"` (fixed, precomputed global
@@ -391,6 +441,7 @@ axis, not just a stylistic difference.
 ## Where things live
 
 - **Checkpoints live in this repo under `checkpoints/`** (explicitly whitelisted in `.gitignore` against the general `*.pt` exclusion -- see `checkpoints/README.md`), trimmed to `config.json` + `results/*.pt`/`*.json` (TensorBoard `boards/` logs dropped, machine-specific). Kept checkpoints are pruned to: the native best (0.5144, `checkpoints/native_best_0.5144/`), the `kuralsnet` baseline (only run that exists, `checkpoints/kuralsnet_baseline/`), and the current 8x64 best/anchor (0.3757/0.3635, kernel3+finetune+dropout, `checkpoints/8x64_anchor_0.3757_bc64/`) plus its width-sweep family (bc=32/96/128/192, `checkpoints/8x64_width_sweep/`), the oracle-ceiling reference (`checkpoints/8x64_oracle_ceiling_reference_NOT_deployable/`), the superseded `2*w_stored+1` weight-quantization retrain (0.3468/0.3581, `checkpoints/8x64_leaky0125_wq2x1_0.3468_bc64/`), the highest-raw-dice-but-not-deployable stem_stride=1 result (0.6401/0.6556, `checkpoints/8x64_stemstride1_0.6401_bc64/`), the intermediate eltwise-fix-only checkpoint (0.6328/0.6491, also retroactively not deployable, `checkpoints/8x64_eltwiselinear_0.6328_bc64/`), and the current deployable 8x64 checkpoint (0.6122/0.6749, `checkpoints/8x64_maxpool_0.6122_bc64/`) -- everything else this branch tried has its config's `comments` field as the record, but no surviving weights (see git log / this file's history if a specific old run's numbers are needed). New checkpoints `train.py` produces during further work still land under the `logs` path from `kurals/config_files/config.ini` (set via `kurals/utils/set_paths.py`), same as always -- only the curated set above is copied into `checkpoints/` and committed.
+- **Baseline geometry at 8x64**: `test_results/baseline_geometry_8x64.json` -- params / MACs / peak activation and the per-stage downsampling plans for `unet`, `segformer` (both stem options) and `kuralsnet_npu_seg` at 8x64, 16x64 and 32x64, plus the pre-fix failure modes and the 256x256 no-regression check. See the baseline-comparison section above before reusing these numbers.
 - **Datasets are also NOT in this repo** (`.gitignore` excludes `*.npy`) -- regenerate the 8x64 one with `resize_extracted_dataset.py` (see the SoC section above) from a native-resolution extracted dataset.
 - **Dataset preprocessing**: `kurals/dataset_process/kuralscw_processing.py` (raw `.mat` -> native-resolution extracted dataset), `resize_extracted_dataset.py` (native -> any smaller RD buffer via block max-pooling), `cfar_detect_and_damp_dataset.py` / `oracle_detect_and_damp_dataset.py` (contrast-preservation attempts, both ruled out as deployable -- see SoC section), `cfar_normalize_dataset.py` (continuous SCR normalization, also underperformed), `build_mixed_train_dataset.py` (train-only privileged-transform dataset builder).
 - **Checkpoint adaptation for finetuning across a shape mismatch**: `expand_kernel3.py` (kernel_size 5->3), `expand_stem_channels.py` (n_frames 1->N), `expand_bottleneck_width.py` (bottleneck_ch 64->N) -- all follow the same pattern: build a fresh target-shaped model, copy every state_dict key whose shape matches the source checkpoint, random-init the rest.

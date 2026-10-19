@@ -7,7 +7,7 @@ import torch
 import numpy as np
 import random
 
-from kurals.utils.functions import count_params
+from kurals.utils.functions import count_params, rd_input_size
 from kurals.learners.initializer import Initializer
 from kurals.learners.model import Model
 from kurals.utils.distributed_utils import init_distributed_mode
@@ -91,7 +91,8 @@ def main():
                     n_frames=data['cfg']['nb_input_channels'])
     elif cfg['model'] == 'unet':
         net = UNet(n_classes=data['cfg']['nb_classes'],
-                   n_frames=data['cfg']['nb_input_channels'])
+                   n_frames=data['cfg']['nb_input_channels'],
+                   input_size=rd_input_size(cfg))
     elif cfg['model'] == 'deeplabv3plus':
         net = deeplabv3plus_resnet101(n_classes=data['cfg']['nb_classes'],
                                       n_frames=data['cfg']['nb_input_channels'])
@@ -105,7 +106,8 @@ def main():
         net = SegFormer(n_classes=data['cfg']['nb_classes'],
                    n_frames=data['cfg']['nb_input_channels'],
                    phi=data['cfg']['phi'],
-                   pretrained=False)
+                   pretrained=False,
+                   input_size=rd_input_size(cfg))
     elif cfg['model'] == 'swin':
         net = Swin(n_classes=data['cfg']['nb_classes'],
                    n_frames=data['cfg']['nb_input_channels'],

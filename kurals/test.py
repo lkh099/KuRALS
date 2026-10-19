@@ -10,7 +10,7 @@ from tqdm import tqdm
 import time
 
 from kurals.utils.paths import Paths
-from kurals.utils.functions import count_params, normalize
+from kurals.utils.functions import count_params, normalize, rd_input_size
 from kurals.utils import flopscounter, profiler
 from kurals.utils.profiler import timings
 from kurals.learners.tester import Tester
@@ -88,7 +88,8 @@ def test_model():
                       n_frames=cfg['nb_input_channels'])
     elif cfg['model'] == 'unet':
         model = UNet(n_classes=cfg['nb_classes'],
-                     n_frames=cfg['nb_input_channels'])
+                     n_frames=cfg['nb_input_channels'],
+                     input_size=rd_input_size(cfg))
     elif cfg['model'] == 'deeplabv3plus':
         model = deeplabv3plus_resnet101(n_classes=cfg['nb_classes'],
                      n_frames=cfg['nb_input_channels'])
@@ -102,7 +103,8 @@ def test_model():
         model = SegFormer(n_classes=cfg['nb_classes'],
                    n_frames=cfg['nb_input_channels'],
                    phi=cfg['phi'],
-                   pretrained=False)
+                   pretrained=False,
+                   input_size=rd_input_size(cfg))
     elif cfg['model'] == 'swin':
         model = Swin(n_classes=cfg['nb_classes'],
                    n_frames=cfg['nb_input_channels'],
