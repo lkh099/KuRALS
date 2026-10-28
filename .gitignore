@@ -160,3 +160,4 @@ exp03/*.out
 # Handoff artifacts ARE committed: the sim server needs them (overrides the global *.npy rule).
 !exp03/model_release*/**/*.npy
 !exp03/example_ifm/**/*.npy
+!exp03/model_release*/checkpoint.pt
