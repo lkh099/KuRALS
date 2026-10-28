@@ -1,6 +1,6 @@
 {
  "contract": "npu_riscv docs/integration/radar_dsp_npu_input.md",
- "log_scale": 22,
+ "log_scale": 0,
  "int8_range": [
   0,
   127
@@ -14,6 +14,15 @@
    "doppler_bins": 8,
    "range_bins": 64,
    "cells": 512,
+   "real_frame_sources": {
+    "frames_taken_from": "model_release_v01",
+    "byte_identical_in": [
+     "model_release_v01",
+     "model_release_w1.0_v01"
+    ],
+    "sample_set_sha256": "e2268c78baa4c1905e5ac6b58c736dd4",
+    "note": "an IFM depends only on the RD grid, not on the model, so these frames are the correct real input for every package listed in byte_identical_in"
+   },
    "int8_bytes": 512,
    "frame_bytes": 2048,
    "examples": [
@@ -34,28 +43,28 @@
     {
      "name": "range_ramp",
      "kind": "synthetic",
-     "code_min": 10,
+     "code_min": 32,
      "code_max": 127,
      "nonzero_cells": 512
     },
     {
      "name": "doppler_ramp",
      "kind": "synthetic",
-     "code_min": 10,
+     "code_min": 32,
      "code_max": 127,
      "nonzero_cells": 512
     },
     {
      "name": "corner_markers",
      "kind": "synthetic",
-     "code_min": 74,
+     "code_min": 96,
      "code_max": 127,
      "nonzero_cells": 512
     },
     {
      "name": "targets",
      "kind": "synthetic",
-     "code_min": 58,
+     "code_min": 80,
      "code_max": 127,
      "nonzero_cells": 512
     },
@@ -64,7 +73,7 @@
      "kind": "synthetic",
      "code_min": 0,
      "code_max": 127,
-     "nonzero_cells": 453
+     "nonzero_cells": 496
     },
     {
      "name": "saturate",
@@ -143,6 +152,14 @@
    "doppler_bins": 16,
    "range_bins": 64,
    "cells": 1024,
+   "real_frame_sources": {
+    "frames_taken_from": "model_release_d16_v01",
+    "byte_identical_in": [
+     "model_release_d16_v01"
+    ],
+    "sample_set_sha256": "a68d35b48cc7bc20ab22252b292e50b4",
+    "note": "an IFM depends only on the RD grid, not on the model, so these frames are the correct real input for every package listed in byte_identical_in"
+   },
    "int8_bytes": 1024,
    "frame_bytes": 4096,
    "examples": [
@@ -163,28 +180,28 @@
     {
      "name": "range_ramp",
      "kind": "synthetic",
-     "code_min": 10,
+     "code_min": 32,
      "code_max": 127,
      "nonzero_cells": 1024
     },
     {
      "name": "doppler_ramp",
      "kind": "synthetic",
-     "code_min": 10,
+     "code_min": 32,
      "code_max": 127,
      "nonzero_cells": 1024
     },
     {
      "name": "corner_markers",
      "kind": "synthetic",
-     "code_min": 74,
+     "code_min": 96,
      "code_max": 127,
      "nonzero_cells": 1024
     },
     {
      "name": "targets",
      "kind": "synthetic",
-     "code_min": 58,
+     "code_min": 80,
      "code_max": 127,
      "nonzero_cells": 1024
     },
@@ -193,7 +210,7 @@
      "kind": "synthetic",
      "code_min": 0,
      "code_max": 127,
-     "nonzero_cells": 950
+     "nonzero_cells": 999
     },
     {
      "name": "saturate",
@@ -272,6 +289,15 @@
    "doppler_bins": 32,
    "range_bins": 64,
    "cells": 2048,
+   "real_frame_sources": {
+    "frames_taken_from": "model_release_d32_v01",
+    "byte_identical_in": [
+     "model_release_d32_v01",
+     "model_release_d32_w0.25_v01"
+    ],
+    "sample_set_sha256": "96e6e96d6e926ccc83182ab7cb098779",
+    "note": "an IFM depends only on the RD grid, not on the model, so these frames are the correct real input for every package listed in byte_identical_in"
+   },
    "int8_bytes": 2048,
    "frame_bytes": 8192,
    "examples": [
@@ -292,28 +318,28 @@
     {
      "name": "range_ramp",
      "kind": "synthetic",
-     "code_min": 10,
+     "code_min": 32,
      "code_max": 127,
      "nonzero_cells": 2048
     },
     {
      "name": "doppler_ramp",
      "kind": "synthetic",
-     "code_min": 10,
+     "code_min": 32,
      "code_max": 127,
      "nonzero_cells": 2048
     },
     {
      "name": "corner_markers",
      "kind": "synthetic",
-     "code_min": 74,
+     "code_min": 96,
      "code_max": 127,
      "nonzero_cells": 2048
     },
     {
      "name": "targets",
      "kind": "synthetic",
-     "code_min": 58,
+     "code_min": 80,
      "code_max": 127,
      "nonzero_cells": 2048
     },
@@ -322,7 +348,7 @@
      "kind": "synthetic",
      "code_min": 0,
      "code_max": 127,
-     "nonzero_cells": 1836
+     "nonzero_cells": 1961
     },
     {
      "name": "saturate",

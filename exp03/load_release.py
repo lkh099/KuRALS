@@ -37,6 +37,7 @@ parameters (pure fused ops) carry no offset keys and contribute no arrays.
 import argparse
 import json
 import os
+import re
 import sys
 
 import numpy as np
@@ -90,13 +91,65 @@ def emit_manifest(pkg, path):
     """Write an export_int8.py-format manifest JSON, so kurals/manifest_to_cfg_input.py can turn a
     package straight into a cfg_gen.py input file without a checkpoint. The per-layer byte offsets
     are dropped here, since export_int8()'s own manifest does not carry them."""
-    _, manifest = load_release(pkg)
-    manifest = dict(manifest, topology=[{k: v for k, v in L.items() if k not in PARAM_KEYS}
-                                        for L in manifest['topology']])
+    manifest = _manifest_for_export(pkg)
+    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
     json.dump(manifest, open(path, 'w'), indent=1)
     print(f'{os.path.basename(pkg)} -> {path} ({len(manifest["topology"])} layers, '
           f'final_upsample={manifest["final_upsample"]})')
     return path
+
+
+def input_contract(pkg):
+    """Build the `input_contract` block that npu_riscv's e2e_golden consumers require.
+
+    `generate_raw_to_track.py` refuses a manifest whose `input_contract.type` is not
+    `dsp_log2_5p3`, and `generate_conformance.py` cross-checks `dsp_log_scale` against the
+    scenario, so a manifest without this block cannot be deployed. The schema is the one in
+    `$NPU_RISCV_CFG_DIR/../sim/e2e_golden/releases/raw_to_track_v{1,2}/model/kurals_int8.json`.
+
+    Every field is derived from the package rather than hardcoded: LOG_SCALE and the power
+    right-shift are parsed out of `preprocessing.json`'s contract string, so a package built at a
+    different LOG_SCALE reports its own value. The two Doppler orders are asserted rather than
+    guessed -- if a package's preprocessing ever stops matching, this raises instead of emitting a
+    contract that silently disagrees with the data.
+    """
+    pre = json.load(open(f'{pkg}/preprocessing.json'))
+    qnt = json.load(open(f'{pkg}/quantization.json'))
+    arch = json.load(open(f'{pkg}/architecture.json'))
+    contract, order = pre['contract'], pre['doppler_order']
+
+    m_scale = re.search(r'LOG_SCALE\((\d+)\)', contract)
+    m_shift = re.search(r'>>\s*(\d+)', contract)
+    if not (m_scale and m_shift):
+        raise ValueError(f'{pkg}: cannot read LOG_SCALE / power right-shift out of '
+                         f'preprocessing.json contract: {contract!r}')
+    if 'natural' not in order or 'fftshifted' not in order:
+        raise ValueError(f'{pkg}: preprocessing.json doppler_order no longer states both the NPU '
+                         f'and the proxy order, so the contract cannot be derived: {order!r}')
+
+    log_scale = int(m_scale.group(1))
+    lanes = arch['input_shape'][0]
+    return dict(type='dsp_log2_5p3',
+                dsp_log_scale=log_scale,
+                dsp_log_scales=[log_scale] * lanes,
+                dsp_log_scales_register=None,
+                lanes=lanes,
+                source_frames=lanes,
+                npu_pixel_bytes=4,
+                npu_input_scale=float(qnt['input_scale']),
+                npu_doppler_order='natural',
+                proxy_power_right_shift=int(m_shift.group(1)),
+                proxy_doppler_order='fftshifted')
+
+
+def _manifest_for_export(pkg):
+    """load_release()'s manifest, trimmed to export_int8()'s own key set and carrying the
+    input_contract block the deployment consumers require."""
+    _, manifest = load_release(pkg)
+    manifest = dict(manifest, topology=[{k: v for k, v in L.items() if k not in PARAM_KEYS}
+                                        for L in manifest['topology']])
+    manifest['input_contract'] = input_contract(pkg)
+    return manifest
 
 
 def emit_export(pkg, prefix):
@@ -104,14 +157,16 @@ def emit_export(pkg, prefix):
     produces (`np.savez(out.npz, **arrays)` plus the manifest at indent=2), so a package can feed
     any consumer of that pair -- e.g. an RTL preload that reads kurals_int8.{json,npz} -- without
     a checkpoint."""
-    arrays, manifest = load_release(pkg)
-    manifest = dict(manifest, topology=[{k: v for k, v in L.items() if k not in PARAM_KEYS}
-                                        for L in manifest['topology']])
+    arrays = load_release(pkg)[0]
+    manifest = _manifest_for_export(pkg)
+    d = os.path.dirname(os.path.abspath(prefix))
+    os.makedirs(d, exist_ok=True)
     np.savez(f'{prefix}.npz', **arrays)
     with open(f'{prefix}.json', 'w') as fp:
         json.dump(manifest, fp, indent=2)
     print(f'{os.path.basename(pkg)} -> {prefix}.npz ({len(arrays)} arrays) + {prefix}.json '
-          f'({len(manifest["topology"])} layers, final_upsample={manifest["final_upsample"]})')
+          f'({len(manifest["topology"])} layers, final_upsample={manifest["final_upsample"]}, '
+          f'input_contract dsp_log_scale={manifest["input_contract"]["dsp_log_scale"]})')
     return prefix
 
 

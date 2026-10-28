@@ -71,8 +71,22 @@ own `main()` produces, for any consumer of that format — an RTL preload readin
 `kurals_int8.{json,npz}`, for instance:
 
 ```bash
-python exp03/load_release.py --package exp03/model_release_d32_w0.25_v01 --emit-export kurals_int8
+python exp03/load_release.py --package exp03/model_release_d32_w0.25_v01 --emit-export out/kurals_int8
 ```
+
+The emitted manifest carries the **`input_contract`** block that npu_riscv's `e2e_golden`
+consumers require: `sim/e2e_golden/generate_raw_to_track.py` refuses a manifest whose
+`input_contract.type` is not `dsp_log2_5p3`, and `generate_conformance.py` cross-checks
+`dsp_log_scale` against the scenario. The emitted block is compared field-for-field against the
+deployed reference in `sim/e2e_golden/releases/raw_to_track_v2/model/kurals_int8.json` and matches
+it exactly, as do the manifest's top-level and per-layer key sets. Every field is derived from the
+package — `dsp_log_scale` and `proxy_power_right_shift` are parsed out of `preprocessing.json`'s
+contract string, so a package built at a different LOG_SCALE reports its own value, and the two
+Doppler orders are asserted rather than assumed, so a package whose preprocessing stops matching
+raises instead of emitting a contract that disagrees with its own data.
+
+Output directories are created as needed, so `--emit-export` and `--emit-manifest` can write to a
+path that does not exist yet.
 
 The same script regenerates the NPU config from a package, no checkpoint involved:
 
@@ -113,9 +127,24 @@ be driven and the network sees the same input. Synthetic patterns: `zeros`, `noi
 `corner_markers` are orientation/transpose checks, `saturate` clamps every cell to 127.
 
 ```bash
-python exp03/make_example_ifm.py --log-scale 22                  # the three study grids
+python exp03/make_example_ifm.py --log-scale 0                   # the three study grids
 python exp03/make_example_ifm.py --grids 8x64,64x128 --log-scale 0
 ```
+
+**LOG_SCALE is 0 everywhere.** The committed set was previously generated at `--log-scale 22`
+while every package's own contract, and the real frames copied out of those packages, use 0 — so
+the synthetic and real inputs in one directory did not share a quantizer setting. The whole set is
+regenerated at 0, `manifest.json` records `log_scale: 0`, and it now matches the packages'
+`preprocessing.json` and the `input_contract` block above. Check `manifest.json`'s `log_scale`
+before reading anything into a synthetic frame's codes.
+
+The real frames come out of a release package's `sample_inputs/`, and an IFM depends only on the
+RD grid, not on the model, so one set serves every package at that grid. `manifest.json` records
+this per grid under `real_frame_sources`: which package the frames were taken from, the sample
+set's SHA-256, and every package verified byte-identical to it. At 32x64 that is both
+`model_release_d32_v01` and `model_release_d32_w0.25_v01`, so the `real_model_release_d32_v01_*`
+files are the correct real input for the 0.25x model too despite the name; the generator warns
+loudly if a package's sample set ever stops matching.
 
 Contract and byte layout: `npu_riscv docs/integration/radar_dsp_npu_input.md`. The generator
 implements that document's `log8()` and `q = clamp(log8(P) - LOG_SCALE, 0, 127)` directly, and

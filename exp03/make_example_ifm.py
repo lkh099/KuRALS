@@ -28,6 +28,7 @@ either mode and expect the same network input.
 """
 import argparse
 import glob
+import hashlib
 import json
 import os
 
@@ -138,8 +139,12 @@ def main():
             entries.append(dict(name=name, kind='synthetic', code_min=int(code.min()), code_max=int(code.max()),
                                 nonzero_cells=int((code > 0).sum())))
 
-        # real frames: reuse the int8 inputs already verified inside a release package for this grid
+        # real frames: reuse the int8 inputs already verified inside a release package for this
+        # grid. An IFM depends only on the RD grid, not on the model, so one set serves every
+        # package at this grid -- but say so explicitly, with the other packages' sample sets
+        # hashed and compared, rather than leaving the reader to infer it from the file name.
         if not a.no_real:
+            grid_pkgs = []
             for rel in sorted(glob.glob(f'{ROOT}/model_release*')):
                 cfgs = glob.glob(f'{rel}/config.yaml')
                 if not cfgs:
@@ -149,6 +154,12 @@ def main():
                 if not ((f'doppler_bins: {H}' in txt and f'range_bins: {W}' in txt)
                         or f'rd_resolution: R{W}-D{H}' in txt):
                     continue
+                h = hashlib.sha256()
+                for f in sorted(glob.glob(f'{rel}/sample_inputs/sample_*_int8.npy')):
+                    h.update(np.load(f).tobytes())
+                grid_pkgs.append((os.path.basename(rel), h.hexdigest()))
+                if len(grid_pkgs) > 1:
+                    continue            # frames already written; this package is only being hashed
                 for i, f in enumerate(sorted(glob.glob(f'{rel}/sample_inputs/sample_*_int8.npy'))):
                     code = np.load(f).reshape(H, W).astype(np.int8)
                     base = f'real_{os.path.basename(rel)}_{i:02d}'
@@ -157,9 +168,27 @@ def main():
                     entries.append(dict(name=base, kind='real (from the release package; no raw power available)',
                                         code_min=int(code.min()), code_max=int(code.max()),
                                         nonzero_cells=int((code > 0).sum()), source=os.path.relpath(f, ROOT)))
-                break
+
+            # Record which packages these frames serve, and whether their sample sets really are
+            # identical. A mismatch would mean the Test-split sampling is no longer deterministic
+            # across packages, and the shared frames could not be trusted for the odd one out.
+            if grid_pkgs:
+                ref = grid_pkgs[0][1]
+                shared = [n for n, hh in grid_pkgs if hh == ref]
+                differing = [n for n, hh in grid_pkgs if hh != ref]
+                real_sources = dict(frames_taken_from=grid_pkgs[0][0],
+                                    byte_identical_in=shared,
+                                    sample_set_sha256=ref[:32],
+                                    note='an IFM depends only on the RD grid, not on the model, so '
+                                         'these frames are the correct real input for every package '
+                                         'listed in byte_identical_in')
+                if differing:
+                    real_sources['DIFFERING'] = differing
+                    print(f'  WARNING {H}x{W}: sample sets differ for {differing}; '
+                          f'the shared real frames do not represent them')
 
         manifest['grids'][f'{H}x{W}'] = dict(doppler_bins=H, range_bins=W, cells=H * W,
+                                             real_frame_sources=(real_sources if not a.no_real and grid_pkgs else None),
                                              int8_bytes=H * W, frame_bytes=4 * H * W, examples=entries)
         print(f'{H}x{W}: {len(entries)} examples, frame = {4 * H * W} B ({H * W} cells) -> {d}')
 
