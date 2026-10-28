@@ -1,0 +1,10 @@
+{
+ "input_encoding": "dsp_log",
+ "norm_type": "dsp_log",
+ "contract": "uint32(floor(RD magnitude)) >> 16 -> 5.3-bit log2 code log8(P) -> clamp(code - LOG_SCALE(0), 0, 127); fed as int8 with input_scale 1.0",
+ "doppler_order": "natural FFT order (zero-Doppler at index 0); dataset stores it fftshifted, so ifftshift on the Doppler axis for input and labels",
+ "source_resolution": "native 124 Doppler x 2048 range",
+ "resolution_reduction": "block max-pooling of the linear-magnitude map to 8 Doppler x 64 range (emulation)",
+ "tensor_order": "(n_frames=1, Doppler=8, Range=64), row-major int8",
+ "reference": "npu_riscv docs/integration/radar_dsp_npu_input.md"
+}

@@ -1,4 +1,5 @@
 """Class to get global paths"""
+import os
 from pathlib import Path
 from kurals.utils import KURAD_HOME
 from kurals.utils.configurable import Configurable
@@ -18,6 +19,12 @@ class Paths(Configurable):
         self.paths['logs'] = Path(self.config['data']['logs'])
         self.paths['KuRALS_CW'] = Path(self.config['data']['cwr'])
         self.paths['KuRALS_PD'] = Path(self.config['data']['pdr'])
+        # Per-process overrides so concurrent runs can point at different dataset
+        # resolutions without racing on the single shared config.ini.
+        if os.environ.get('KURALS_CWR'):
+            self.paths['KuRALS_CW'] = Path(os.environ['KURALS_CWR'])
+        if os.environ.get('KURALS_LOGS'):
+            self.paths['logs'] = Path(os.environ['KURALS_LOGS'])
 
     def get(self):
         return self.paths

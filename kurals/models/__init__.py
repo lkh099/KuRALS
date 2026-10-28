@@ -1,5 +1,6 @@
 from .kuralsnet import KuRALSNet
 from .kuralsnet_npu_seg import KuRALSNetNPUSeg
+from .npu_unet import NPUUNet
 from .kuralsnet_woaspp import KuRALSNet_WoASPP
 from .kuralsnet_ada import KuRALSNet_ADA
 from .kuralsnet_pkc import KuRALSNet_PKC

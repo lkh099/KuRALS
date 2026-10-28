@@ -14,7 +14,7 @@ import time
 
 from kurals.loaders.dataloaders import KuRALSDataset
 from kurals.learners.tester import Tester
-from kurals.utils.functions import normalize, define_loss, get_transformations
+from kurals.utils.functions import normalize, to_natural_doppler, define_loss, get_transformations
 from kurals.utils.tensorboard_visualizer import TensorboardMultiLossVisualizer
 from kurals.utils.distributed_utils import get_rank, reduce_value
 
@@ -192,6 +192,8 @@ class Model(nn.Module):
                     rd_data = frame['rd_matrix'].to(self.device).float()
                     rd_mask = frame['rd_mask'].to(self.device).float()
                     rd_data = normalize(rd_data, self.dataset, 'range_doppler', norm_type=self.norm_type)
+                    rd_data = to_natural_doppler(rd_data, self.norm_type)
+                    rd_mask = to_natural_doppler(rd_mask, self.norm_type)
 
                     optimizer.zero_grad()
                     
@@ -277,8 +279,10 @@ class Model(nn.Module):
                                                         ))
 
                             # lt @20230522
-                            if val_metrics['range_doppler']['dice'] > best_val_dop and iteration > 0 and deployable:
-                                best_val_dop = val_metrics['range_doppler']['dice']
+                            # select_metric: 'dice' (legacy default) or 'miou' (Exp03: checkpoint = best val mIoU)
+                            sel = val_metrics['range_doppler'][self.cfg.get('select_metric', 'dice')]
+                            if sel > best_val_dop and iteration > 0 and deployable:
+                                best_val_dop = sel
                                 flag_save = True
                                 name_result.append('val_doppler')
                             

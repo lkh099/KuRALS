@@ -7,13 +7,13 @@ import torch
 import numpy as np
 import random
 
-from kurals.utils.functions import count_params
+from kurals.utils.functions import count_params, is_dsp_log
 from kurals.learners.initializer import Initializer
 from kurals.learners.model import Model
 from kurals.utils.distributed_utils import init_distributed_mode
 
 from kurals.models import KuRALSNet, KuRALSNet_WoASPP, KuRALSNet_ADA, KuRALSNet_PKC, KuRALSNet_AdaPKCTheta, KuRALSNet_AdaPKCXi
-from kurals.models import KuRALSNetNPUSeg
+from kurals.models import KuRALSNetNPUSeg, NPUUNet
 from kurals.models import FCN8s, UNet, deeplabv3plus_resnet101, HRNet, RSSNet
 from kurals.models import SegFormer, Swin
 
@@ -53,7 +53,8 @@ def main():
     if cfg['model'] == 'kuralsnet':
         net = KuRALSNet(n_classes=data['cfg']['nb_classes'],
                      n_frames=data['cfg']['nb_input_channels'],
-                     dataset_type=data['cfg']['dataset'])
+                     dataset_type=data['cfg']['dataset'],
+                     generic_size=cfg.get('generic_size', False))
     elif cfg['model'] == 'kuralsnet_woaspp':
         net = KuRALSNet_WoASPP(n_classes=data['cfg']['nb_classes'],
                    n_frames=data['cfg']['nb_input_channels'],
@@ -85,7 +86,16 @@ def main():
                      dropout_rate=cfg.get('dropout_rate', 0),
                      encoder_depth=cfg.get('encoder_depth', None),
                      stem_stride=cfg.get('stem_stride', None),
-                     eltwise_act=cfg.get('eltwise_act', None))
+                     eltwise_act=cfg.get('eltwise_act', None),
+                     width_mult=cfg.get('width_mult', 1.0),
+                     fixed_input_scale=1.0 if is_dsp_log(cfg.get('norm_type')) else None)
+    elif cfg['model'] == 'npu_unet':
+        net = NPUUNet(n_classes=data['cfg']['nb_classes'],
+                      n_frames=data['cfg']['nb_input_channels'],
+                      dataset_type=data['cfg']['dataset'],
+                      base_ch=cfg.get('base_ch', 16),
+                      width_mult=cfg.get('width_mult', 1.0),
+                      fixed_input_scale=1.0 if is_dsp_log(cfg.get('norm_type')) else None)
     elif cfg['model'] == 'fcn8s':
         net = FCN8s(n_classes=data['cfg']['nb_classes'],
                     n_frames=data['cfg']['nb_input_channels'])
@@ -131,7 +141,7 @@ def main():
         net = torch.nn.parallel.DistributedDataParallel(net, device_ids=[args.gpu])
         net_without_ddp = net.module
     
-    if cfg['model'] in ['fcn8s', 'unet', 'deeplabv3plus', 'hrnet', 'rssnet', 'segformer', 'swin', 'kuralsnet_npu_seg']:
+    if cfg['model'] in ['fcn8s', 'unet', 'deeplabv3plus', 'hrnet', 'rssnet', 'segformer', 'swin', 'kuralsnet_npu_seg', 'npu_unet']:
         Model(net, data).train(add_temp=False)
     else:
         Model(net, data).train(add_temp=True)

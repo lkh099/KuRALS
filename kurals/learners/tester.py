@@ -6,7 +6,7 @@ import torch
 from torch.utils.data import DataLoader
 from torchvision.utils import make_grid
 
-from kurals.utils.functions import transform_masks_viz, get_metrics, normalize, define_loss, get_transformations, get_qualitatives
+from kurals.utils.functions import transform_masks_viz, get_metrics, normalize, to_natural_doppler, define_loss, get_transformations, get_qualitatives
 from kurals.utils.paths import Paths
 from kurals.utils.metrics import Evaluator
 from kurals.loaders.dataloaders import KuRALSDataset
@@ -123,6 +123,8 @@ class Tester:
                     rd_data = frame['rd_matrix'].to(self.device).float()
                     rd_mask = frame['rd_mask'].to(self.device).float()
                     rd_data = normalize(rd_data, self.dataset, 'range_doppler', norm_type=self.norm_type)
+                    rd_data = to_natural_doppler(rd_data, self.norm_type)
+                    rd_mask = to_natural_doppler(rd_mask, self.norm_type)
                     
                     rd_outputs = net(rd_data)
                     

@@ -1,0 +1,7 @@
+# Canonical naming: R64-D8 = 64 range bins x 8 Doppler bins
+name: R64-D8
+range_bins: 64
+doppler_bins: 8
+dataset_root: /home/lkh099/datasets_local/KuRALS_CW_8x64/KuRALS_CW
+input_encoding: dsp_log          # DSP 5.3-bit log2 code, input_scale 1.0, natural Doppler (see docs/NPU_CONSTRAINTS.md)
+npu_buffer_bytes: 0x8000         # NPU8 MEM1/MEM2 span per buffer

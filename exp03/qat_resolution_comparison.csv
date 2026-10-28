@@ -1,0 +1,19 @@
+resolution,seed,role,fp32_checkpoint,fp32_test_miou,QAT_LR,QAT_best_epoch,QAT_test_miou,quantization_delta,status,retry,used_for_final_stats
+R64-D8,42,tuning (QAT-LR search),B_kuralsnet_npu_seg_wm0.5_ss1_R64-D8_lr0.000333333_s42,0.5734,0.0001,48,0.5561,0.0173,stable,,
+R64-D8,42,tuning (QAT-LR search),B_kuralsnet_npu_seg_wm0.5_ss1_R64-D8_lr0.000333333_s42,0.5734,3e-05,45,0.5549,0.0185,stable,,
+R64-D8,42,tuning (QAT-LR search),B_kuralsnet_npu_seg_wm0.5_ss1_R64-D8_lr0.000333333_s42,0.5734,1e-05,2,0.5989,-0.0255,stable,,
+R64-D8,43,final,B_kuralsnet_npu_seg_wm0.5_ss1_R64-D8_lr0.000333333_s43,0.4438,0.0001,78,0.5342,-0.0904,stable,,yes
+R64-D8,44,final,B_kuralsnet_npu_seg_wm0.5_ss1_R64-D8_lr0.000333333_s44,0.5675,0.0001,93,0.6017,-0.0342,stable,,yes
+R64-D8,45,final,B_kuralsnet_npu_seg_wm0.5_ss1_R64-D8_lr0.000333333_s45,0.5522,0.0001,48,0.6538,-0.1016,stable,,yes
+R64-D16,42,tuning (QAT-LR search),B_kuralsnet_npu_seg_wm0.5_ss1_R64-D16_lr0.001_s42,0.4793,0.0001,27,0.5014,-0.0221,stable,,
+R64-D16,42,tuning (QAT-LR search),B_kuralsnet_npu_seg_wm0.5_ss1_R64-D16_lr0.001_s42,0.4793,3e-05,36,0.5067,-0.0275,stable,,
+R64-D16,42,tuning (QAT-LR search),B_kuralsnet_npu_seg_wm0.5_ss1_R64-D16_lr0.001_s42,0.4793,1e-05,25,0.4963,-0.017,stable,,
+R64-D16,43,final,B_kuralsnet_npu_seg_wm0.5_ss1_R64-D16_lr0.001_s43,0.3872,0.0001,2,0.4099,-0.0227,stable,,yes
+R64-D16,44,final,B_kuralsnet_npu_seg_wm0.5_ss1_R64-D16_lr0.001_s44,0.4943,0.0001,2,0.519,-0.0247,stable,,yes
+R64-D16,45,final,B_kuralsnet_npu_seg_wm0.5_ss1_R64-D16_lr0.001_s45,0.5122,0.0001,84,0.5939,-0.0817,stable,,yes
+R64-D32,42,tuning (QAT-LR search),B_kuralsnet_npu_seg_wm0.5_ss2_R64-D32_lr0.000333333_s42,0.2991,0.0001,89,0.2588,0.0403,stable,,
+R64-D32,42,tuning (QAT-LR search),B_kuralsnet_npu_seg_wm0.5_ss2_R64-D32_lr0.000333333_s42,0.2991,3e-05,78,0.2657,0.0334,stable,,
+R64-D32,42,tuning (QAT-LR search),B_kuralsnet_npu_seg_wm0.5_ss2_R64-D32_lr0.000333333_s42,0.2991,1e-05,48,0.2749,0.0242,stable,,
+R64-D32,43,final,B_kuralsnet_npu_seg_wm0.5_ss2_R64-D32_lr0.000333333_s43,0.2919,0.0001,62,0.2878,0.0041,stable,,yes
+R64-D32,44,final,B_kuralsnet_npu_seg_wm0.5_ss2_R64-D32_lr0.000333333_s44,0.3087,0.0001,50,0.3482,-0.0395,stable,,yes
+R64-D32,45,final,B_kuralsnet_npu_seg_wm0.5_ss2_R64-D32_lr0.000333333_s45,0.2788,0.0001,8,0.3277,-0.0489,stable,,yes

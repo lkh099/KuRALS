@@ -1,0 +1,16 @@
+name: R64-D8 KuRALSNetNPUSeg 1.0x (QAT int8)
+version: v01
+rd_resolution: R64-D8
+range_bins: 64
+doppler_bins: 8
+model: kuralsnet_npu_seg
+width_mult: 1.0
+stem_stride: 1
+encoder_depth: 1
+bottleneck_kernel_size: 3
+eltwise_act: linear
+n_classes: 4
+norm_type: dsp_log
+npu_buffer_bytes: '0x8000'
+source_run: Q_kuralsnet_npu_seg_wm1.0_ss1_R64-D8_qlr1e-05_s45
+seed: 45

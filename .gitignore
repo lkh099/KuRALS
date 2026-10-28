@@ -150,3 +150,13 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+# ---------------------------------------------------------------- exp03 (resolution study / NPU handoff)
+# Training output: 200+ MB of checkpoints, logs and per-run results, machine-specific.
+# The numbers that matter are distilled into exp03/summaries/.
+exp03/runs/
+exp03/runs_*/
+exp03/*.log
+exp03/*.out
+# Handoff artifacts ARE committed: the sim server needs them (overrides the global *.npy rule).
+!exp03/model_release*/**/*.npy
+!exp03/example_ifm/**/*.npy

@@ -1,5 +1,6 @@
 """A lot of functions used in our pipelines"""
 import json
+import os
 import numpy as np
 import torch
 import torch.nn as nn
@@ -134,6 +135,65 @@ def get_metrics(metrics, loss, losses=None):
     return metrics_values
 
 
+# ---------------------------------------------------------------------------
+# DSP -> NPU input contract ("dsp_log2_5p3"), from npu_riscv's
+# docs/integration/radar_dsp_npu_input.md. The radar DSP hardware turns each uint32
+# range-Doppler power value P into one int8 pixel:
+#     log8(P) = {leading_one_index(P), three_bits_below_leading_one(P)}   (5.3-bit log2)
+#     q       = clamp(log8(P) - LOG_SCALE, 0, 127)
+# and the NPU consumes q directly (input_scale == 1.0, natural FFT Doppler order).
+# KuRALS stores float64 RD magnitudes, so P is emulated exactly as npu_riscv's
+# "proxy bridge" does: P = uint32(floor(value)) >> proxy_power_right_shift (default 16).
+# norm_type syntax: 'dsp_log' | 'dsp_log:<proxy_shift>' | 'dsp_log:<proxy_shift>:<log_scale>'.
+# ---------------------------------------------------------------------------
+DSP_LOG_DEFAULT_SHIFT = 16
+DSP_LOG_DEFAULT_SCALE = 0
+
+
+def is_dsp_log(norm_type):
+    return isinstance(norm_type, str) and norm_type.split(':')[0] == 'dsp_log'
+
+
+def parse_dsp_log(norm_type):
+    parts = norm_type.split(':')
+    shift = int(parts[1]) if len(parts) > 1 else DSP_LOG_DEFAULT_SHIFT
+    scale = int(parts[2]) if len(parts) > 2 else DSP_LOG_DEFAULT_SCALE
+    assert 0 <= scale <= 255, 'LOG_SCALE is a uint8 APB field'
+    return shift, scale
+
+
+def dsp_log8(power_u32):
+    """Bit-exact 5.3 log2 code of integer power (int64 tensor holding uint32 values), as
+    power_quant_log2.sv / sim/e2e_golden/dsp_multiscale.log8_uint32. 0 -> 0."""
+    p = power_u32.long()
+    exponent = torch.zeros_like(p)
+    for bit in range(32):
+        exponent = torch.where((p >> bit) & 1 == 1, torch.full_like(p, bit), exponent)
+    up = (p << (3 - exponent).clamp(min=0)) & 7          # exponent < 3: pad zeros below
+    down = (p >> (exponent - 3).clamp(min=0)) & 7        # exponent >= 3: take the 3 bits under the MSB
+    mantissa = torch.where(exponent >= 3, down, up)
+    code = (exponent << 3) | mantissa
+    return torch.where(p == 0, torch.zeros_like(code), code)
+
+
+def dsp_log_quantize(data, shift=DSP_LOG_DEFAULT_SHIFT, scale=DSP_LOG_DEFAULT_SCALE):
+    """float RD magnitudes -> the int8 pixel codes the DSP hands the NPU, returned as float
+    tensors holding integers in [0, 127] (so the stem sees them with input_scale 1.0)."""
+    p = torch.floor(data.double()).clamp(0, 2 ** 32 - 1).long() >> shift
+    q = (dsp_log8(p) - scale).clamp(0, 127)
+    return q.to(data.dtype if data.is_floating_point() else torch.float32)
+
+
+def to_natural_doppler(x, norm_type):
+    """The DSP/NPU contract uses natural FFT Doppler order (zero-Doppler at index 0); the
+    dataset stores it fftshifted (zero-Doppler centred). Apply ifftshift on the Doppler axis
+    (dim -2) to both RD input and mask so the network trains on the deployed layout. No-op
+    for other norm types, which keep the legacy layout."""
+    if is_dsp_log(norm_type) and not os.environ.get('KURALS_NO_ROLL'):  # env switch: diagnostics only
+        return torch.roll(x, shifts=-(x.shape[-2] // 2), dims=-2)
+    return x
+
+
 def normalize(data, dataset_type, signal_type, norm_type='local'):
     """
     Method to normalise the radar views
@@ -154,6 +214,11 @@ def normalize(data, dataset_type, signal_type, norm_type='local'):
     norm_data: numpy array
         normalised radar view
     """
+    if is_dsp_log(norm_type):
+        if signal_type != 'range_doppler':
+            raise TypeError('dsp_log is only defined for range_doppler')
+        return dsp_log_quantize(data, *parse_dsp_log(norm_type))
+
     if dataset_type == 'KuRALS_CW':
         file_name = 'cwr'
     elif dataset_type == 'KuRALS_PD':

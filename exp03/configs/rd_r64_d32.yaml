@@ -1,0 +1,7 @@
+# Canonical naming: R64-D32 = 64 range bins x 32 Doppler bins
+name: R64-D32
+range_bins: 64
+doppler_bins: 32
+dataset_root: /home/lkh099/datasets_local/KuRALS_CW_32x64/KuRALS_CW
+input_encoding: dsp_log          # DSP 5.3-bit log2 code, input_scale 1.0, natural Doppler (see docs/NPU_CONSTRAINTS.md)
+npu_buffer_bytes: 0x8000         # NPU8 MEM1/MEM2 span per buffer

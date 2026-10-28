@@ -1,0 +1,16 @@
+{
+ "order": [
+  "background",
+  "class1 (UAV)",
+  "class2",
+  "class3"
+ ],
+ "index_to_name": {
+  "0": "background",
+  "1": "UAV",
+  "2": "class2",
+  "3": "class3"
+ },
+ "note": "classes 2/3 are the non-UAV (pedestrian/vehicle) channels of KuRALS_CW; class 3 is nearly absent in the data",
+ "decode": "argmax over the 4 logits per pixel"
+}

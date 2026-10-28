@@ -95,7 +95,12 @@ def run_benchmark():
         # it, and evaluating without it would silently score the
         # float32-equivalent network instead of real int8-simulated behavior.
         net = KuRALSNetNPUSeg(n_classes=cfg['nb_classes'], n_frames=cfg['nb_input_channels'],
-                               dataset_type=cfg['dataset'], bottleneck_ch=cfg.get('bottleneck_ch', 64))
+                               dataset_type=cfg['dataset'], bottleneck_ch=cfg.get('bottleneck_ch', 64),
+                               bottleneck_kernel_size=cfg.get('bottleneck_kernel_size', 5),
+                               dropout_rate=cfg.get('dropout_rate', 0),
+                               encoder_depth=cfg.get('encoder_depth', None),
+                               stem_stride=cfg.get('stem_stride', None),
+                               eltwise_act=cfg.get('eltwise_act', None))
         state = torch.load(args.model_path, map_location='cpu')
         net.load_state_dict(state, strict=True)
         net.to(device)

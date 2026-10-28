@@ -93,8 +93,13 @@ class KuRALSNetNPUSeg(nn.Module):
 
     def __init__(self, n_classes, n_frames, dataset_type='KuRALS_CW', bottleneck_ch=64, shallow_encoder=False,
                  bottleneck_kernel_size=5, dropout_rate=0, encoder_depth=None, stem_stride=None,
-                 eltwise_act=None):
+                 eltwise_act=None, width_mult=1.0, fixed_input_scale=None):
         super().__init__()
+        # width_mult scales every channel count uniformly (rounded to a multiple of 8, min 8),
+        # for the Exp03 width search. 1.0 reproduces the original architecture exactly.
+        def _w(c):
+            return max(8, int(round(c * width_mult / 8.0)) * 8) if width_mult != 1.0 else c
+        self.width_mult = width_mult
         self.n_classes = n_classes
         self.n_frames = n_frames
         # stem_stride=1 keeps the whole network at native input resolution (head_out
@@ -116,7 +121,7 @@ class KuRALSNetNPUSeg(nn.Module):
         self.encoder_depth = (1 if shallow_encoder else 2) if encoder_depth is None else encoder_depth
         assert self.encoder_depth in (0, 1, 2), 'encoder_depth must be 0, 1, or 2'
         self.shallow_encoder = shallow_encoder
-        bc = bottleneck_ch
+        bc = _w(bottleneck_ch)
         # Whole-channel dropout on the bottleneck's output -- the most overfitting-prone
         # stage (smallest spatial extent, so fewest independent samples per BatchNorm
         # channel). Identity at eval (net.eval() disables Dropout automatically), so this
@@ -125,8 +130,9 @@ class KuRALSNetNPUSeg(nn.Module):
         self.bott_dropout = nn.Dropout2d(p=dropout_rate)
 
         # --- Encoder: identical to KuRALSNetNPU (kuralsnet_npu.py) ---
-        self.stem = DepthwiseSeparableBlock(n_frames, 16, act='leaky', stride=self.stem_stride)  # /1 -> /2 (or /1 -> /1)
-        self.stageA = DepthwiseSeparableBlock(16, 32, act='leaky')                # /2 -> Skip (32ch)
+        self.stem = DepthwiseSeparableBlock(n_frames, _w(16), act='leaky', stride=self.stem_stride)  # /1 -> /2 (or /1 -> /1)
+        self.stem.dw.fixed_in_scale = fixed_input_scale  # 1.0 under the DSP log-code contract
+        self.stageA = DepthwiseSeparableBlock(_w(16), _w(32), act='leaky')                # /2 -> Skip (32ch)
 
         # encoder_depth=0 also drops down1's stride (/2 -> /2 instead of /2 -> /4) -- for
         # inputs tiny enough that even /4 leaves too little spatial extent (e.g. the SoC
@@ -137,12 +143,12 @@ class KuRALSNetNPUSeg(nn.Module):
         # before stageA.pw, and down1/down2 both come after that -- see CLAUDE.md's "Row-reuse
         # vs frame-reuse grouping"), where a strided depthwise conv is illegal. See
         # QuantDepthwiseSeparableBlock's docstring.
-        self.down1 = DepthwiseSeparableBlock(32, 64, act='leaky', stride=2 if self.encoder_depth >= 1 else 1,
+        self.down1 = DepthwiseSeparableBlock(_w(32), _w(64), act='leaky', stride=2 if self.encoder_depth >= 1 else 1,
                                               downsample='maxpool' if self.encoder_depth >= 1 else 'stride')  # /2 -> /4
         # encoder_depth<=1 drops this stage's stride (/4 -> /4 instead of /4 -> /8) --
         # for inputs already tiny enough that /8 leaves near-zero bottleneck spatial extent
         # (e.g. an 8-wide axis -> 1 at /8). upconv_b's upsample is dropped to match (below).
-        self.down2 = DepthwiseSeparableBlock(64, bc, act='leaky', stride=2 if self.encoder_depth >= 2 else 1,
+        self.down2 = DepthwiseSeparableBlock(_w(64), bc, act='leaky', stride=2 if self.encoder_depth >= 2 else 1,
                                               downsample='maxpool' if self.encoder_depth >= 2 else 'stride')
 
         # --- Bottleneck: identical to KuRALSNetNPU when bottleneck_ch=64, bottleneck_kernel_size=5 ---
@@ -160,11 +166,11 @@ class KuRALSNetNPUSeg(nn.Module):
         self.bott_d2 = ResidualDWSeparableBlock(bc, act='leaky', dw_kernel_size=bk, eltwise_act=ea)  # -> P_deep
 
         # --- Decoder: identical to KuRALSNetNPU through dec_a (/2, 24ch) ---
-        self.upconv_b = DepthwiseSeparableBlock(bc, 32, act='leaky')   # /8 -> /4 (fused upsample), no concat -- plain conv, no upsample, if shallow_encoder
-        self.refine_b = DepthwiseSeparableBlock(32, 32, act='leaky')   # /4, plain refine
+        self.upconv_b = DepthwiseSeparableBlock(bc, _w(32), act='leaky')   # /8 -> /4 (fused upsample), no concat -- plain conv, no upsample, if shallow_encoder
+        self.refine_b = DepthwiseSeparableBlock(_w(32), _w(32), act='leaky')   # /4, plain refine
 
-        self.upconv_a = DepthwiseSeparableBlock(32, 32, act='leaky')   # /4 -> /2 (fused upsample)
-        self.dec_a = DepthwiseSeparableBlock(32 + 32, 24, act='leaky')  # concat w/ Skip -> /2
+        self.upconv_a = DepthwiseSeparableBlock(_w(32), _w(32), act='leaky')   # /4 -> /2 (fused upsample)
+        self.dec_a = DepthwiseSeparableBlock(_w(32) + _w(32), _w(24), act='leaky')  # concat w/ Skip -> /2
 
         # Segmentation head: n_classes raw logits (background included), plain
         # linear 1x1 conv -- decoded with argmax off-NPU, matching kuralsnet.py's
@@ -173,7 +179,7 @@ class KuRALSNetNPUSeg(nn.Module):
         # post-head_out nearest-upsample to /1 rather than a learned decoder
         # hop -- a real /2->/1 conv hop was tried and reverted after it failed
         # to beat this /2 formulation's own numbers (see module docstring).
-        self.head_out = ConvBNAct(24, self.n_classes, kernel_size=1, stride=1, act='linear')
+        self.head_out = ConvBNAct(_w(24), self.n_classes, kernel_size=1, stride=1, act='linear')
 
     @staticmethod
     def output_hw(h, w):

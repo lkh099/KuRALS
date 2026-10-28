@@ -233,6 +233,10 @@ class QuantConvBNAct(nn.Module):
         self.in_observer = EMAObserver(edge_margin=in_edge_margin)
         self.out_observer = EMAObserver(percentile=out_percentile)
         self.quant_enabled = False
+        # When set (e.g. 1.0 for the stem under the DSP 'dsp_log2_5p3' contract, where the NPU
+        # consumes the DSP's int8 code directly), the input scale is this constant instead of
+        # the observer's calibrated one.
+        self.fixed_in_scale = None
 
     def freeze_observers(self):
         self.in_observer.freeze()
@@ -288,7 +292,7 @@ class QuantConvBNAct(nn.Module):
         w_stored = torch.clamp(torch.round((w_folded / w_scale.view(-1, 1, 1, 1) - 1.0) / 2.0), -128, 127)
         w_int8 = w_stored.to(torch.int8)
 
-        in_scale = self.in_observer.scale(127.0)
+        in_scale = self.fixed_in_scale if self.fixed_in_scale is not None else self.in_observer.scale(127.0)
         unsigned_out = (self.act_name == 'relu')
         out_qmax = 255.0 if unsigned_out else 127.0
         out_scale = out_scale_override if out_scale_override is not None else self.out_observer.scale(out_qmax)
@@ -336,7 +340,7 @@ class QuantConvBNAct(nn.Module):
         # the correct sign already, treating this layer's input range as
         # already representing that quantized tensor is consistent.)
         self.in_observer.observe(x)
-        x_scale = self.in_observer.scale(127.0)
+        x_scale = self.fixed_in_scale if self.fixed_in_scale is not None else self.in_observer.scale(127.0)
         x_q = ste_clamp(ste_round(x / x_scale), -128.0, 127.0)
 
         # ---- weights: fake-quantize to signed int8, per output channel. Hardware

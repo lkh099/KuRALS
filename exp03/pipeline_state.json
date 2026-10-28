@@ -1,0 +1,503 @@
+{
+ "protocol": {
+  "tune_seed": 42,
+  "final_seeds": [
+   43,
+   44,
+   45
+  ],
+  "epochs": 200,
+  "batch": {
+   "physical": 6,
+   "accumulation": 1,
+   "effective": 6
+  },
+  "lr_grid": [
+   0.003,
+   0.002,
+   0.001,
+   0.0003
+  ],
+  "buf_bytes": 32768
+ },
+ "lr_A": 0.001,
+ "lr_A_table": {
+  "0.003": 0.5606115936558372,
+  "0.002": 0.5403318543930835,
+  "0.001": 0.5685606673050604,
+  "0.0003": 0.4332806284965858
+ },
+ "B_candidates": [
+  {
+   "res": 8,
+   "width": 0.5,
+   "stem_stride": 1,
+   "lr": 0.001,
+   "params": 9587,
+   "macs": 1569280,
+   "weight_bytes": 11568,
+   "peak_npu_buffer": 16384,
+   "feasible": true,
+   "rejection": null
+  },
+  {
+   "res": 8,
+   "width": 0.5,
+   "stem_stride": 1,
+   "lr": 0.0003333333333333333,
+   "params": 9587,
+   "macs": 1569280,
+   "weight_bytes": 11568,
+   "peak_npu_buffer": 16384,
+   "feasible": true,
+   "rejection": null
+  },
+  {
+   "res": 8,
+   "width": 0.5,
+   "stem_stride": 2,
+   "lr": 0.001,
+   "params": 9587,
+   "macs": 392320,
+   "weight_bytes": 11568,
+   "peak_npu_buffer": 4096,
+   "feasible": true,
+   "rejection": null
+  },
+  {
+   "res": 8,
+   "width": 0.5,
+   "stem_stride": 2,
+   "lr": 0.0003333333333333333,
+   "params": 9587,
+   "macs": 392320,
+   "weight_bytes": 11568,
+   "peak_npu_buffer": 4096,
+   "feasible": true,
+   "rejection": null
+  },
+  {
+   "res": 8,
+   "width": 1.0,
+   "stem_stride": 1,
+   "lr": 0.001,
+   "params": 31139,
+   "macs": 4952576,
+   "weight_bytes": 34432,
+   "peak_npu_buffer": 32768,
+   "feasible": true,
+   "rejection": null
+  },
+  {
+   "res": 8,
+   "width": 1.0,
+   "stem_stride": 1,
+   "lr": 0.0003333333333333333,
+   "params": 31139,
+   "macs": 4952576,
+   "weight_bytes": 34432,
+   "peak_npu_buffer": 32768,
+   "feasible": true,
+   "rejection": null
+  },
+  {
+   "res": 8,
+   "width": 1.0,
+   "stem_stride": 2,
+   "lr": 0.001,
+   "params": 31139,
+   "macs": 1238144,
+   "weight_bytes": 34432,
+   "peak_npu_buffer": 8192,
+   "feasible": true,
+   "rejection": null
+  },
+  {
+   "res": 8,
+   "width": 1.0,
+   "stem_stride": 2,
+   "lr": 0.0003333333333333333,
+   "params": 31139,
+   "macs": 1238144,
+   "weight_bytes": 34432,
+   "peak_npu_buffer": 8192,
+   "feasible": true,
+   "rejection": null
+  },
+  {
+   "res": 8,
+   "width": 1.5,
+   "stem_stride": 1,
+   "lr": 0.001,
+   "params": 64723,
+   "macs": 10170880,
+   "weight_bytes": 69328,
+   "peak_npu_buffer": 49152,
+   "feasible": false,
+   "rejection": "peak 49152 B > 32768 B"
+  },
+  {
+   "res": 8,
+   "width": 1.5,
+   "stem_stride": 1,
+   "lr": 0.0003333333333333333,
+   "params": 64723,
+   "macs": 10170880,
+   "weight_bytes": 69328,
+   "peak_npu_buffer": 49152,
+   "feasible": false,
+   "rejection": "peak 49152 B > 32768 B"
+  },
+  {
+   "res": 8,
+   "width": 1.5,
+   "stem_stride": 2,
+   "lr": 0.001,
+   "params": 64723,
+   "macs": 2542720,
+   "weight_bytes": 69328,
+   "peak_npu_buffer": 12288,
+   "feasible": true,
+   "rejection": null
+  },
+  {
+   "res": 8,
+   "width": 1.5,
+   "stem_stride": 2,
+   "lr": 0.0003333333333333333,
+   "params": 64723,
+   "macs": 2542720,
+   "weight_bytes": 69328,
+   "peak_npu_buffer": 12288,
+   "feasible": true,
+   "rejection": null
+  },
+  {
+   "res": 16,
+   "width": 0.5,
+   "stem_stride": 1,
+   "lr": 0.001,
+   "params": 9587,
+   "macs": 3138560,
+   "weight_bytes": 11568,
+   "peak_npu_buffer": 32768,
+   "feasible": true,
+   "rejection": null
+  },
+  {
+   "res": 16,
+   "width": 0.5,
+   "stem_stride": 1,
+   "lr": 0.0003333333333333333,
+   "params": 9587,
+   "macs": 3138560,
+   "weight_bytes": 11568,
+   "peak_npu_buffer": 32768,
+   "feasible": true,
+   "rejection": null
+  },
+  {
+   "res": 16,
+   "width": 0.5,
+   "stem_stride": 2,
+   "lr": 0.001,
+   "params": 9587,
+   "macs": 784640,
+   "weight_bytes": 11568,
+   "peak_npu_buffer": 8192,
+   "feasible": true,
+   "rejection": null
+  },
+  {
+   "res": 16,
+   "width": 0.5,
+   "stem_stride": 2,
+   "lr": 0.0003333333333333333,
+   "params": 9587,
+   "macs": 784640,
+   "weight_bytes": 11568,
+   "peak_npu_buffer": 8192,
+   "feasible": true,
+   "rejection": null
+  },
+  {
+   "res": 16,
+   "width": 1.0,
+   "stem_stride": 1,
+   "lr": 0.001,
+   "params": 31139,
+   "macs": 9905152,
+   "weight_bytes": 34432,
+   "peak_npu_buffer": 65536,
+   "feasible": false,
+   "rejection": "peak 65536 B > 32768 B"
+  },
+  {
+   "res": 16,
+   "width": 1.0,
+   "stem_stride": 1,
+   "lr": 0.0003333333333333333,
+   "params": 31139,
+   "macs": 9905152,
+   "weight_bytes": 34432,
+   "peak_npu_buffer": 65536,
+   "feasible": false,
+   "rejection": "peak 65536 B > 32768 B"
+  },
+  {
+   "res": 16,
+   "width": 1.0,
+   "stem_stride": 2,
+   "lr": 0.001,
+   "params": 31139,
+   "macs": 2476288,
+   "weight_bytes": 34432,
+   "peak_npu_buffer": 16384,
+   "feasible": true,
+   "rejection": null
+  },
+  {
+   "res": 16,
+   "width": 1.0,
+   "stem_stride": 2,
+   "lr": 0.0003333333333333333,
+   "params": 31139,
+   "macs": 2476288,
+   "weight_bytes": 34432,
+   "peak_npu_buffer": 16384,
+   "feasible": true,
+   "rejection": null
+  },
+  {
+   "res": 16,
+   "width": 1.5,
+   "stem_stride": 1,
+   "lr": 0.001,
+   "params": 64723,
+   "macs": 20341760,
+   "weight_bytes": 69328,
+   "peak_npu_buffer": 98304,
+   "feasible": false,
+   "rejection": "peak 98304 B > 32768 B"
+  },
+  {
+   "res": 16,
+   "width": 1.5,
+   "stem_stride": 1,
+   "lr": 0.0003333333333333333,
+   "params": 64723,
+   "macs": 20341760,
+   "weight_bytes": 69328,
+   "peak_npu_buffer": 98304,
+   "feasible": false,
+   "rejection": "peak 98304 B > 32768 B"
+  },
+  {
+   "res": 16,
+   "width": 1.5,
+   "stem_stride": 2,
+   "lr": 0.001,
+   "params": 64723,
+   "macs": 5085440,
+   "weight_bytes": 69328,
+   "peak_npu_buffer": 24576,
+   "feasible": true,
+   "rejection": null
+  },
+  {
+   "res": 16,
+   "width": 1.5,
+   "stem_stride": 2,
+   "lr": 0.0003333333333333333,
+   "params": 64723,
+   "macs": 5085440,
+   "weight_bytes": 69328,
+   "peak_npu_buffer": 24576,
+   "feasible": true,
+   "rejection": null
+  },
+  {
+   "res": 32,
+   "width": 0.5,
+   "stem_stride": 1,
+   "lr": 0.001,
+   "params": 9587,
+   "macs": 6277120,
+   "weight_bytes": 11568,
+   "peak_npu_buffer": 65536,
+   "feasible": false,
+   "rejection": "peak 65536 B > 32768 B"
+  },
+  {
+   "res": 32,
+   "width": 0.5,
+   "stem_stride": 1,
+   "lr": 0.0003333333333333333,
+   "params": 9587,
+   "macs": 6277120,
+   "weight_bytes": 11568,
+   "peak_npu_buffer": 65536,
+   "feasible": false,
+   "rejection": "peak 65536 B > 32768 B"
+  },
+  {
+   "res": 32,
+   "width": 0.5,
+   "stem_stride": 2,
+   "lr": 0.001,
+   "params": 9587,
+   "macs": 1569280,
+   "weight_bytes": 11568,
+   "peak_npu_buffer": 16384,
+   "feasible": true,
+   "rejection": null
+  },
+  {
+   "res": 32,
+   "width": 0.5,
+   "stem_stride": 2,
+   "lr": 0.0003333333333333333,
+   "params": 9587,
+   "macs": 1569280,
+   "weight_bytes": 11568,
+   "peak_npu_buffer": 16384,
+   "feasible": true,
+   "rejection": null
+  },
+  {
+   "res": 32,
+   "width": 1.0,
+   "stem_stride": 1,
+   "lr": 0.001,
+   "params": 31139,
+   "macs": 19810304,
+   "weight_bytes": 34432,
+   "peak_npu_buffer": 131072,
+   "feasible": false,
+   "rejection": "peak 131072 B > 32768 B"
+  },
+  {
+   "res": 32,
+   "width": 1.0,
+   "stem_stride": 1,
+   "lr": 0.0003333333333333333,
+   "params": 31139,
+   "macs": 19810304,
+   "weight_bytes": 34432,
+   "peak_npu_buffer": 131072,
+   "feasible": false,
+   "rejection": "peak 131072 B > 32768 B"
+  },
+  {
+   "res": 32,
+   "width": 1.0,
+   "stem_stride": 2,
+   "lr": 0.001,
+   "params": 31139,
+   "macs": 4952576,
+   "weight_bytes": 34432,
+   "peak_npu_buffer": 32768,
+   "feasible": true,
+   "rejection": null
+  },
+  {
+   "res": 32,
+   "width": 1.0,
+   "stem_stride": 2,
+   "lr": 0.0003333333333333333,
+   "params": 31139,
+   "macs": 4952576,
+   "weight_bytes": 34432,
+   "peak_npu_buffer": 32768,
+   "feasible": true,
+   "rejection": null
+  },
+  {
+   "res": 32,
+   "width": 1.5,
+   "stem_stride": 1,
+   "lr": 0.001,
+   "params": 64723,
+   "macs": 40683520,
+   "weight_bytes": 69328,
+   "peak_npu_buffer": 196608,
+   "feasible": false,
+   "rejection": "peak 196608 B > 32768 B"
+  },
+  {
+   "res": 32,
+   "width": 1.5,
+   "stem_stride": 1,
+   "lr": 0.0003333333333333333,
+   "params": 64723,
+   "macs": 40683520,
+   "weight_bytes": 69328,
+   "peak_npu_buffer": 196608,
+   "feasible": false,
+   "rejection": "peak 196608 B > 32768 B"
+  },
+  {
+   "res": 32,
+   "width": 1.5,
+   "stem_stride": 2,
+   "lr": 0.001,
+   "params": 64723,
+   "macs": 10170880,
+   "weight_bytes": 69328,
+   "peak_npu_buffer": 49152,
+   "feasible": false,
+   "rejection": "peak 49152 B > 32768 B"
+  },
+  {
+   "res": 32,
+   "width": 1.5,
+   "stem_stride": 2,
+   "lr": 0.0003333333333333333,
+   "params": 64723,
+   "macs": 10170880,
+   "weight_bytes": 69328,
+   "peak_npu_buffer": 49152,
+   "feasible": false,
+   "rejection": "peak 49152 B > 32768 B"
+  }
+ ],
+ "B_picks": {
+  "8": {
+   "wm": 0.5,
+   "ss": 1,
+   "lr": 0.0003333333333333333,
+   "val_miou": 0.5771667935699842,
+   "macs": 1569280,
+   "n_feasible": 10
+  },
+  "16": {
+   "wm": 0.5,
+   "ss": 1,
+   "lr": 0.001,
+   "val_miou": 0.5619857589561312,
+   "macs": 3138560,
+   "n_feasible": 8
+  },
+  "32": {
+   "wm": 0.5,
+   "ss": 2,
+   "lr": 0.0003333333333333333,
+   "val_miou": 0.30591347623866105,
+   "macs": 1569280,
+   "n_feasible": 4
+  }
+ },
+ "kn_lr": 0.003,
+ "kn_lr_table": {
+  "0.003": 0.5861620855680156,
+  "0.002": 0.5529120320086715,
+  "0.001": 0.5656141025859728,
+  "0.0003": 0.5715645025444082,
+  "0.0001": 0.5821258302778519
+ },
+ "qat_lr": {
+  "8": 0.0001,
+  "16": 0.0001,
+  "32": 0.0001
+ }
+}

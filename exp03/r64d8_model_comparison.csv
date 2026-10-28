@@ -1,0 +1,6 @@
+model,n_final_seeds,test_miou,test_dice,test_uav_iou,per_class_iou_mean,params,MACs,peak_activation_memory,peak_npu_buffer,npu_legal,npu_feasible_32KB,npu_latency,note
+NPU-UNet 0.5x,3,0.5572 ± 0.0541,0.6470 ± 0.0729,0.6759 ± 0.0187,"[0.9989, 0.6759, 0.4207, 0.1333]",30992,3297280,20480,8192,not checked (baseline),yes,pending,LR from Exp A search
+NPU-UNet 1.0x,3,0.5894 ± 0.0247,0.7006 ± 0.0314,0.6652 ± 0.0044,"[0.9989, 0.6652, 0.4503, 0.2433]",123032,13082624,40960,16384,not checked (baseline),yes,pending,LR from Exp A search
+NPU-UNet 1.5x,3,0.5985 ± 0.0548,0.6977 ± 0.0721,0.6932 ± 0.0149,"[0.9989, 0.6932, 0.4455, 0.2564]",276128,29356032,61440,24576,not checked (baseline),yes,pending,LR from Exp A search
+Proposed (D8 co-designed KuRALSNetNPUSeg),3,0.5212 ± 0.0551,0.6119 ± 0.0823,0.6658 ± 0.0178,"[0.9969, 0.6658, 0.2849, 0.1371]",9587,1569280,49152,16384,yes,yes,pending,Exp B pick
+KuRALS-Net (algorithmic reference),3,0.5699 ± 0.0247,0.6675 ± 0.0422,0.7094 ± 0.0231,"[0.9989, 0.7094, 0.4111, 0.1603]",1151460,311181312,131072,N/A,not checked (baseline),no,N/A,Original KuRALS-Net as an accuracy reference; NPU legality is not required for baselines and was not checked. Run with size-adaptive global pooling (identical to the original at native size).

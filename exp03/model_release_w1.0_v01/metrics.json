@@ -1,0 +1,56 @@
+{
+ "checkpoint": "runs/Q_kuralsnet_npu_seg_wm1.0_ss1_R64-D8_qlr1e-05_s45/logs/KuRALS_CW/kuralsnet_npu_seg/kuralsnet_npu_seg_e100_lr1e-05_s45_0_2026-10-21-22:31:37/results/val_doppler_model.pt",
+ "run": "Q_kuralsnet_npu_seg_wm1.0_ss1_R64-D8_qlr1e-05_s45",
+ "seed": 45,
+ "best_val_epoch": 22,
+ "selection_rule": "best validation mIoU among final seeds 43/44/45 of the frozen configuration; test evaluated once",
+ "qat_float_sim": {
+  "test_miou": 0.6152285543094407,
+  "test_iou_by_class": [
+   0.9987844558587005,
+   0.6681222707423581,
+   0.4606741573033708,
+   0.3333333333333333
+  ]
+ },
+ "exact_integer_replay": {
+  "test_miou": 0.6152285543094407,
+  "test_iou_by_class": [
+   0.9987844558587005,
+   0.6681222707423581,
+   0.4606741573033708,
+   0.3333333333333333
+  ],
+  "pixel_agreement_with_qat_sim": 1.0
+ },
+ "recorded_by_trainer": {
+  "val_miou": 0.5936859758309195,
+  "test_miou": 0.5947218976344464,
+  "test_iou_by_class": [
+   0.9987844198198866,
+   0.6413502109704642,
+   0.4530386740331492,
+   0.2857142857142857
+  ]
+ },
+ "weight_bytes": 29161,
+ "n_params_conv": 29161,
+ "macs": 4952576,
+ "params": 31139,
+ "peak_activation_bytes": 98304,
+ "npu_check": {
+  "macs": 4952576,
+  "params": 31139,
+  "peak_act_bytes": 98304,
+  "cutpoint": 3,
+  "layers": 23,
+  "buf_size": 32768,
+  "ok": true,
+  "param_bytes": 34432,
+  "buf1": 32768,
+  "buf2": 32768,
+  "buf3": 0
+ },
+ "fp32_reference_tag": "B_kuralsnet_npu_seg_wm1.0_ss1_R64-D8_lr0.001_s45",
+ "weights_sha256": "33b7396a74ea40ff80f983ed7008a94c07034e1ac570aaea9bf2a201c3f2053b"
+}

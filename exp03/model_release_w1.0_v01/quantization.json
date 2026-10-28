@@ -1,0 +1,198 @@
+{
+ "scheme": "symmetric int8, no zero point (always 0)",
+ "weight_precision": "int8, per-channel; effective weight 2*w+1",
+ "activation_precision": "int8 signed, per-tensor (EMA observers frozen after quant_freeze_iters)",
+ "accumulator_precision": "int32 (replayed exactly in float64)",
+ "scale_bias_precision": "int16",
+ "mode": "QAT (fine-tuned from the best FP32 checkpoint)",
+ "clipping": "int8 saturation [-128,127]; truncating shifts bias_shift in [5,20], act_shift in [0,7]",
+ "input_scale": 1.0,
+ "output_scale": 0.32227373123168945,
+ "output_unsigned": false,
+ "per_layer": [
+  {
+   "name": "stem.dw",
+   "shift1": 13,
+   "shift2": 7,
+   "in_scale": 1.0,
+   "out_scale": 0.035117827355861664,
+   "act_name": "leaky"
+  },
+  {
+   "name": "stem.pw",
+   "shift1": 15,
+   "shift2": 7,
+   "in_scale": 0.03300822153687477,
+   "out_scale": 0.07485499233007431,
+   "act_name": "leaky"
+  },
+  {
+   "name": "stageA.dw",
+   "shift1": 13,
+   "shift2": 7,
+   "in_scale": 0.0710180327296257,
+   "out_scale": 0.11980591714382172,
+   "act_name": "leaky"
+  },
+  {
+   "name": "stageA.pw",
+   "shift1": 15,
+   "shift2": 7,
+   "in_scale": 0.10923328995704651,
+   "out_scale": 0.10041242092847824,
+   "act_name": "leaky"
+  },
+  {
+   "name": "down1.dw",
+   "shift1": 10,
+   "shift2": 7,
+   "in_scale": 0.09595503658056259,
+   "out_scale": 0.09946876019239426,
+   "act_name": "leaky"
+  },
+  {
+   "name": "down1.pw",
+   "shift1": 16,
+   "shift2": 7,
+   "in_scale": 0.09399166703224182,
+   "out_scale": 0.08406892418861389,
+   "act_name": "leaky"
+  },
+  {
+   "name": "down2.dw",
+   "shift1": 13,
+   "shift2": 7,
+   "in_scale": 0.0783504992723465,
+   "out_scale": 0.07773860543966293,
+   "act_name": "leaky"
+  },
+  {
+   "name": "down2.pw",
+   "shift1": 16,
+   "shift2": 7,
+   "in_scale": 0.07500797510147095,
+   "out_scale": 0.061030711978673935,
+   "act_name": "leaky"
+  },
+  {
+   "name": "bott_c.dw",
+   "shift1": 14,
+   "shift2": 7,
+   "in_scale": 0.05632453411817551,
+   "out_scale": 0.08456000685691833,
+   "act_name": "leaky"
+  },
+  {
+   "name": "bott_c.pw",
+   "shift1": 15,
+   "shift2": 7,
+   "in_scale": 0.07676182687282562,
+   "out_scale": 0.05632453411817551,
+   "act_name": "linear"
+  },
+  {
+   "name": "bott_d1.dw",
+   "shift1": 15,
+   "shift2": 7,
+   "in_scale": 0.05926639959216118,
+   "out_scale": 0.06404374539852142,
+   "act_name": "leaky"
+  },
+  {
+   "name": "bott_d1.pw",
+   "shift1": 16,
+   "shift2": 7,
+   "in_scale": 0.06272824853658676,
+   "out_scale": 0.05926639959216118,
+   "act_name": "linear"
+  },
+  {
+   "name": "bott_d2.dw",
+   "shift1": 16,
+   "shift2": 7,
+   "in_scale": 0.06017252057790756,
+   "out_scale": 0.05933522805571556,
+   "act_name": "leaky"
+  },
+  {
+   "name": "bott_d2.pw",
+   "shift1": 16,
+   "shift2": 7,
+   "in_scale": 0.05587169528007507,
+   "out_scale": 0.06017252057790756,
+   "act_name": "linear"
+  },
+  {
+   "name": "upconv_b.dw",
+   "shift1": 16,
+   "shift2": 7,
+   "in_scale": 0.061450038105249405,
+   "out_scale": 0.04568500444293022,
+   "act_name": "leaky"
+  },
+  {
+   "name": "upconv_b.pw",
+   "shift1": 17,
+   "shift2": 7,
+   "in_scale": 0.04453456401824951,
+   "out_scale": 0.055183302611112595,
+   "act_name": "leaky"
+  },
+  {
+   "name": "refine_b.dw",
+   "shift1": 13,
+   "shift2": 7,
+   "in_scale": 0.05154084041714668,
+   "out_scale": 0.05938408151268959,
+   "act_name": "leaky"
+  },
+  {
+   "name": "refine_b.pw",
+   "shift1": 16,
+   "shift2": 7,
+   "in_scale": 0.05342358723282814,
+   "out_scale": 0.03554683178663254,
+   "act_name": "leaky"
+  },
+  {
+   "name": "upconv_a.dw",
+   "shift1": 13,
+   "shift2": 7,
+   "in_scale": 0.03383763134479523,
+   "out_scale": 0.04676490277051926,
+   "act_name": "leaky"
+  },
+  {
+   "name": "upconv_a.pw",
+   "shift1": 17,
+   "shift2": 7,
+   "in_scale": 0.04380590468645096,
+   "out_scale": 0.10041242092847824,
+   "act_name": "leaky"
+  },
+  {
+   "name": "dec_a.dw",
+   "shift1": 10,
+   "shift2": 7,
+   "in_scale": 0.09595503658056259,
+   "out_scale": 0.09407052397727966,
+   "act_name": "leaky"
+  },
+  {
+   "name": "dec_a.pw",
+   "shift1": 16,
+   "shift2": 7,
+   "in_scale": 0.09138604998588562,
+   "out_scale": 0.07684385776519775,
+   "act_name": "leaky"
+  },
+  {
+   "name": "head_out",
+   "shift1": 15,
+   "shift2": 7,
+   "in_scale": 0.07487933337688446,
+   "out_scale": 0.32227373123168945,
+   "act_name": "linear"
+  }
+ ]
+}

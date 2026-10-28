@@ -62,9 +62,12 @@ class ASPPBlock(nn.Module):
     Parallel conv blocks with different dilation rate
     """
 
-    def __init__(self, in_ch, out_ch=256, dataset_type='KuRALS_CW'):
+    def __init__(self, in_ch, out_ch=256, dataset_type='KuRALS_CW', generic_size=False):
         super().__init__()
         self.dataset_type = dataset_type
+        # generic_size: global average pooling over the whole feature map (what the hard-coded
+        # 62x512 / 64x200 window computes at native size) so the model also runs on small RD maps.
+        self.generic_size = generic_size
         # For KuRALS_CW dataset
         if self.dataset_type == 'KuRALS_CW':
             self.global_avg_pool = nn.AvgPool2d((62, 512))
@@ -78,8 +81,10 @@ class ASPPBlock(nn.Module):
         self.single_conv_block3_3x3 = ConvBlock(in_ch, out_ch, k_size=3, pad=18, dil=18)
 
     def forward(self, x):
+        if self.generic_size:
+            x1 = x.mean(dim=(2, 3), keepdim=True).expand(-1, -1, x.shape[2], x.shape[3])
         # For KuRALS_CW dataset
-        if self.dataset_type == 'KuRALS_CW':
+        elif self.dataset_type == 'KuRALS_CW':
             x1 = F.interpolate(self.global_avg_pool(x), size=(62, 512), align_corners=False,
                             mode='bilinear')
         # For KuRALS_PD dataset
@@ -155,7 +160,7 @@ class KuRALSNet(nn.Module):
         Total numer of frames used as a sequence
     """
 
-    def __init__(self, n_classes, n_frames, dataset_type='KuRALS_CW'):
+    def __init__(self, n_classes, n_frames, dataset_type='KuRALS_CW', generic_size=False):
         super().__init__()
         self.n_classes = n_classes
         self.n_frames = n_frames
@@ -164,7 +169,7 @@ class KuRALSNet(nn.Module):
         self.rd_encoding_branch = EncodingBranch('range_doppler', n_frames, dataset_type)
 
         # ASPP Blocks
-        self.rd_aspp_block = ASPPBlock(in_ch=64, out_ch=128, dataset_type=dataset_type)
+        self.rd_aspp_block = ASPPBlock(in_ch=64, out_ch=128, dataset_type=dataset_type, generic_size=generic_size)
         self.rd_single_conv_block1_1x1 = ConvBlock(in_ch=640, out_ch=128, k_size=1, pad=0, dil=1)
 
         # Range-Doppler (RD) decoding branch

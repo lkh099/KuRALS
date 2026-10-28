@@ -4,6 +4,7 @@ on how to infer quantization state from a checkpoint."""
 import torch
 
 from kurals.models import KuRALSNetNPUSeg
+from kurals.utils.functions import is_dsp_log
 
 
 def load_segmentation_model(cfg, model_path, device, quant_mode='auto'):
@@ -14,7 +15,7 @@ def load_segmentation_model(cfg, model_path, device, quant_mode='auto'):
     ----------
     cfg: dict
         Training config (needs nb_classes, nb_input_channels, dataset; optional
-        bottleneck_ch, default 64).
+        bottleneck_ch, default 64; width_mult, norm_type -- must match training, see train.py).
     model_path: str or Path
     device: torch.device
     quant_mode: 'auto', 'on', or 'off'
@@ -36,7 +37,9 @@ def load_segmentation_model(cfg, model_path, device, quant_mode='auto'):
                            dropout_rate=cfg.get('dropout_rate', 0),
                            encoder_depth=cfg.get('encoder_depth', None),
                            stem_stride=cfg.get('stem_stride', None),
-                           eltwise_act=cfg.get('eltwise_act', None))
+                           eltwise_act=cfg.get('eltwise_act', None),
+                           width_mult=cfg.get('width_mult', 1.0),
+                           fixed_input_scale=1.0 if is_dsp_log(cfg.get('norm_type')) else None)
     checkpoint = torch.load(model_path, map_location=device)
     state_dict = checkpoint['net'] if isinstance(checkpoint, dict) and 'net' in checkpoint else checkpoint
     net.load_state_dict(state_dict)
