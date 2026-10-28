@@ -185,7 +185,9 @@ state = json.load(open(f'{ROOT}/pipeline_state.json'))
 # templating a hard-coded LR, as this line used to) keeps the tag correct at every resolution and
 # width: the D16 winner trained at lr 1e-3 and the 1.0x design at lr 1e-3, not at the D8 winner's 3.33e-4.
 _seed = a.run.rsplit('_s', 1)[1]
-_stem = a.run.replace('Q_', 'B_').split('_qlr')[0]
+# Q_ -> B_, and any suffixed variant alongside it (QW_ -> BW_, for the width-grid extension
+# runs in width025_d32.py), so a QAT tag from outside the pre-registered grid still resolves.
+_stem = re.sub(r'^Q([A-Z]*)_', r'B\1_', a.run).split('_qlr')[0]
 _cands = sorted(d for d in glob.glob(f'{ROOT}/runs/{_stem}_lr*_s{_seed}') if os.path.exists(f'{d}/DONE'))
 if len(_cands) == 1:
     fp32_tag = os.path.basename(_cands[0])

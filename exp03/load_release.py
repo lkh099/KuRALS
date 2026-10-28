@@ -12,6 +12,9 @@ mismatch started. This closes that gap -- a package plus this file is enough.
   # one sample, and dump the per-layer comparison
   python exp03/load_release.py --package exp03/model_release_v01 --sample 3 --layers
 
+  # the .npz + .json pair export_int8.py emits, for an RTL preload or any other consumer
+  python exp03/load_release.py --package exp03/model_release_d32_v01 --emit-export /tmp/kurals_int8
+
   # regenerate the cfg_gen.py input for a package, no checkpoint involved
   python exp03/load_release.py --package exp03/model_release_d32_v01 --emit-manifest /tmp/d32.json
   python kurals/manifest_to_cfg_input.py /tmp/d32.json --out kurals/input/kuralsnet_npu_seg_32x64.txt
@@ -34,8 +37,16 @@ parameters (pure fused ops) carry no offset keys and contribute no arrays.
 import argparse
 import json
 import os
+import sys
 
 import numpy as np
+
+# Importing kurals.int8_inference must work when this file is run as a script from the repo root
+# (python exp03/load_release.py ...), where sys.path[0] is exp03/ and the repo root is not on the
+# path at all. Without this you get "No module named 'kurals'" unless PYTHONPATH=. is set.
+_REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _REPO not in sys.path:
+    sys.path.insert(0, _REPO)
 
 PARAM_KEYS = ('weight_offset', 'weight_bytes', 'weight_shape', 'scale_offset', 'n_scale', 'bias_offset', 'n_bias')
 
@@ -86,6 +97,22 @@ def emit_manifest(pkg, path):
     print(f'{os.path.basename(pkg)} -> {path} ({len(manifest["topology"])} layers, '
           f'final_upsample={manifest["final_upsample"]})')
     return path
+
+
+def emit_export(pkg, prefix):
+    """Write <prefix>.npz and <prefix>.json in exactly the layout kurals/export_int8.py's main()
+    produces (`np.savez(out.npz, **arrays)` plus the manifest at indent=2), so a package can feed
+    any consumer of that pair -- e.g. an RTL preload that reads kurals_int8.{json,npz} -- without
+    a checkpoint."""
+    arrays, manifest = load_release(pkg)
+    manifest = dict(manifest, topology=[{k: v for k, v in L.items() if k not in PARAM_KEYS}
+                                        for L in manifest['topology']])
+    np.savez(f'{prefix}.npz', **arrays)
+    with open(f'{prefix}.json', 'w') as fp:
+        json.dump(manifest, fp, indent=2)
+    print(f'{os.path.basename(pkg)} -> {prefix}.npz ({len(arrays)} arrays) + {prefix}.json '
+          f'({len(manifest["topology"])} layers, final_upsample={manifest["final_upsample"]})')
+    return prefix
 
 
 def grid(pkg):
@@ -150,7 +177,12 @@ def main():
     ap.add_argument('--layers', action='store_true', help='also compare every layer against golden_layer_outputs')
     ap.add_argument('--emit-manifest', metavar='PATH', default=None,
                     help='write an export_int8-format manifest JSON for kurals/manifest_to_cfg_input.py and exit')
+    ap.add_argument('--emit-export', metavar='PREFIX', default=None,
+                    help='write PREFIX.npz + PREFIX.json, the pair kurals/export_int8.py emits, and exit')
     a = ap.parse_args()
+    if a.emit_export:
+        emit_export(a.package.rstrip('/'), a.emit_export)
+        raise SystemExit(0)
     if a.emit_manifest:
         emit_manifest(a.package.rstrip('/'), a.emit_manifest)
         raise SystemExit(0)

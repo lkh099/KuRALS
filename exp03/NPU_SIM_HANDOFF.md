@@ -11,8 +11,13 @@ Everything here is resolution-agnostic: nothing assumes an 8x64 grid.
 | `model_release_w1.0_v01` | R64-D8 | 1.0x | 4,952,576 | 32,768 B | 0.6152 | `Q_…wm1.0_ss1_R64-D8_qlr1e-05_s45` |
 | `model_release_d16_v01` | R64-D16 | 0.5x | 3,138,560 | 32,768 B | 0.5939 | `Q_…wm0.5_ss1_R64-D16_qlr0.0001_s45` |
 | `model_release_d32_v01` | R64-D32 | 0.5x (stem_stride 2) | 1,569,280 | 16,384 B | 0.3262 | `Q_…wm0.5_ss2_R64-D32_qlr0.0001_s44` |
+| **`model_release_d32_w0.25_v01`** | R64-D32 | **0.25x (stem_stride 1)** | 2,246,656 | 32,768 B | **0.5003** | `QW_…wm0.25_ss1_R64-D32_qlr0.0001_s45` |
 
-All four pass `gen_cfg.py` allocation at 32 KiB with CUTPOINT 3 and 23 layers.
+**Use `model_release_d32_w0.25_v01` for D32 work.** `model_release_d32_v01` is kept because it is
+the pre-registered design-point package the paper's tables refer to, but its stride-2 head caps its
+accuracy (see the caveats) and the 0.25x stride-1 package is +0.174 replay mIoU at the same grid.
+
+All five pass `gen_cfg.py` allocation at 32 KiB with CUTPOINT 3 and 23 layers.
 
 **`gen_cfg.py` is not in this repo.** It is NPU8's own config generator and lives in the separate
 `npu_riscv` repository, at `$NPU_RISCV_CFG_DIR` (default `~/xsrc/ext/npu_riscv/cfg_generator`);
@@ -60,6 +65,14 @@ python exp03/load_release.py --package exp03/model_release_d32_v01 --sample 0 --
 hardware or simulator mismatch has to be localised to a layer rather than just observed at the
 output. Reading a package needs only numpy; replaying it also needs torch, because
 `int8_inference.py` runs the convolutions in float64 (exact for this network — see its docstring).
+
+`--emit-export` writes the `<prefix>.npz` + `<prefix>.json` pair that `kurals/export_int8.py`'s
+own `main()` produces, for any consumer of that format — an RTL preload reading
+`kurals_int8.{json,npz}`, for instance:
+
+```bash
+python exp03/load_release.py --package exp03/model_release_d32_w0.25_v01 --emit-export kurals_int8
+```
 
 The same script regenerates the NPU config from a package, no checkpoint involved:
 
@@ -123,9 +136,12 @@ the packing is unit-checked against the stated byte addresses.
   int8 QAT test mIoU **0.4919 +- 0.0730** over seeds 43-45 against this package's
   **0.3212 +- 0.0307**, i.e. +0.1707 +- 0.0428 paired by seed, with all three seeds improving
   and FP32 moving too (+0.0972). See `exp03/summaries/width025_d32.json` and
-  `exp03/width025_d32.py`. **If D32 matters to you, ask for this package to be rebuilt from
-  `QW_kuralsnet_npu_seg_wm0.25_ss1_R64-D32_qlr0.0001_s44`** — it has not been built yet, and it
-  would sit at the bank limit with no headroom, like the D16 and 1.0x packages.
+  `exp03/width025_d32.py`. **That package is now built: `model_release_d32_w0.25_v01`**, from
+  `QW_kuralsnet_npu_seg_wm0.25_ss1_R64-D32_qlr0.0001_s45` (seed 45 is the best-*validation* seed of
+  the three, val 0.5358; an earlier note here said seed 44, which is the best-*test* seed — the
+  project's selection rule is validation, so 45 is correct). Its exact-integer replay over the
+  whole D32 Test split gives test mIoU **0.5003** against this package's 0.3262. It sits at the
+  bank limit with no headroom (buf1 = buf2 = 32,768 B), like the D16 and 1.0x packages.
 * **The D16/D32 QAT re-run is finished and changed nothing** (`exp03/qat_redo_d16_d32.py`,
   results in `exp03/summaries/qat_redo_d16_d32.json`). Seeds 43-45 were re-fine-tuned at QAT LR
   3e-5 and 1e-5 for both grids; neither beat the 1e-4 runs on validation, so both packages above
