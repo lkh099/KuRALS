@@ -1,0 +1,94 @@
+{
+ "design": {
+  "resolution": "R64-D32",
+  "width_mult": 0.25,
+  "stem_stride": 1,
+  "encoder_depth": 1,
+  "params": 3323,
+  "macs": 2246656,
+  "peak_npu_buffer": 32768,
+  "buffer_budget": 32768
+ },
+ "fp32_lr_search": {
+  "0.001": 0.514,
+  "0.000333333": 0.5323
+ },
+ "fp32_finals": {
+  "43": {
+   "val_miou": 0.4296,
+   "test_miou": 0.4012,
+   "best_epoch": 87
+  },
+  "44": {
+   "val_miou": 0.3058,
+   "test_miou": 0.3055,
+   "best_epoch": 142
+  },
+  "45": {
+   "val_miou": 0.4981,
+   "test_miou": 0.4643,
+   "best_epoch": 183
+  }
+ },
+ "qat_lr_search": {
+  "0.0001": 0.5425,
+  "3e-05": 0.5269,
+  "1e-05": 0.5112
+ },
+ "qat_finals": {
+  "43": {
+   "val_miou": 0.4745,
+   "test_miou": 0.4093,
+   "best_epoch": 47,
+   "test_iou_by_class": [
+    0.9989,
+    0.4636,
+    0.1749,
+    0.0
+   ]
+  },
+  "44": {
+   "val_miou": 0.5152,
+   "test_miou": 0.548,
+   "best_epoch": 18,
+   "test_iou_by_class": [
+    0.9995,
+    0.5889,
+    0.3537,
+    0.25
+   ]
+  },
+  "45": {
+   "val_miou": 0.5358,
+   "test_miou": 0.5184,
+   "best_epoch": 59,
+   "test_iou_by_class": [
+    0.9995,
+    0.5872,
+    0.3817,
+    0.1053
+   ]
+  }
+ },
+ "incumbent": {
+  "tag": "Q_kuralsnet_npu_seg_wm0.5_ss2_R64-D32_qlr0.0001_s44",
+  "val_miou": 0.3475,
+  "test_miou": 0.3482,
+  "test_iou_by_class": [
+   0.9989,
+   0.2382,
+   0.1558,
+   0.0
+  ],
+  "note": "wm0.5 ss2, source of model_release_d32_v01; single best-val run, not a seed mean -- its 0.3475 is the max of a 0.3026 +- 0.011 band"
+ },
+ "fp32_lr_chosen": "0.000333333",
+ "qat_lr_chosen": "0.0001",
+ "qat_final_summary": {
+  "n": 3,
+  "val_mean": 0.5085,
+  "val_sd": 0.0312,
+  "test_mean": 0.4919,
+  "test_sd": 0.073
+ }
+}
