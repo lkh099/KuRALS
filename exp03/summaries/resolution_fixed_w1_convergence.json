@@ -1,0 +1,275 @@
+{
+ "protocol": "summaries/resolution_fixed_w1_CONVERGENCE_PROTOCOL.md",
+ "criterion": {
+  "statistic": "median of the last 10 logged train-loss values",
+  "threshold": 0.005,
+  "source": "training loss only; no val/test quantity"
+ },
+ "arms": [
+  {
+   "name": "A1",
+   "lr": 0.001,
+   "epochs": 400
+  },
+  {
+   "name": "A2",
+   "lr": 0.002,
+   "epochs": 200
+  },
+  {
+   "name": "A3",
+   "lr": 0.003,
+   "epochs": 200
+  }
+ ],
+ "preference_order": [
+  "A1",
+  "A2",
+  "A3"
+ ],
+ "locked": null,
+ "stage_p": {
+  "A1": {
+   "lr": 0.001,
+   "epochs": 400,
+   "rescue": {
+    "D16_s45": {
+     "res": 16,
+     "seed": 45,
+     "lr": 0.001,
+     "epochs": 400,
+     "med10": 0.00016895162843866274,
+     "converged": true,
+     "escape_epoch": 211,
+     "val_miou": 0.5611583631703196,
+     "test_miou": 0.5045647416671339,
+     "best_epoch": 312,
+     "val_iou_by_class": [
+      0.9996,
+      0.6967,
+      0.4769,
+      0.0714
+     ]
+    },
+    "D32_s44": {
+     "res": 32,
+     "seed": 44,
+     "lr": 0.001,
+     "epochs": 400,
+     "med10": 0.011898937169462442,
+     "converged": false,
+     "escape_epoch": null,
+     "val_miou": 0.4212638835573049,
+     "test_miou": 0.3650819282715742,
+     "best_epoch": 47,
+     "val_iou_by_class": [
+      0.9683,
+      0.6694,
+      0.0473,
+      0.0001
+     ]
+    }
+   },
+   "scaling": {
+    "D16_s42": {
+     "res": 16,
+     "seed": 42,
+     "lr": 0.001,
+     "epochs": 400,
+     "med10": 0.00015237676416290924,
+     "converged": true,
+     "escape_epoch": 19,
+     "val_miou": 0.5617027959770965,
+     "test_miou": 0.5539778304561078,
+     "best_epoch": 119,
+     "val_iou_by_class": [
+      0.9996,
+      0.7136,
+      0.4054,
+      0.1282
+     ]
+    },
+    "D32_s42": {
+     "res": 32,
+     "seed": 42,
+     "lr": 0.001,
+     "epochs": 400,
+     "med10": 0.0001653058934607543,
+     "converged": true,
+     "escape_epoch": 21,
+     "val_miou": 0.5102523347260269,
+     "test_miou": 0.4699313129885495,
+     "best_epoch": 45,
+     "val_iou_by_class": [
+      0.9996,
+      0.687,
+      0.3544,
+      0.0
+     ]
+    }
+   }
+  },
+  "A2": {
+   "lr": 0.002,
+   "epochs": 200,
+   "rescue": {
+    "D16_s45": {
+     "res": 16,
+     "seed": 45,
+     "lr": 0.002,
+     "epochs": 200,
+     "med10": 0.0010527124395594,
+     "converged": true,
+     "escape_epoch": 138,
+     "val_miou": 0.4805053003041297,
+     "test_miou": 0.42771872757544177,
+     "best_epoch": 146,
+     "val_iou_by_class": [
+      0.9985,
+      0.3361,
+      0.4079,
+      0.1795
+     ]
+    },
+    "D32_s44": {
+     "res": 32,
+     "seed": 44,
+     "lr": 0.002,
+     "epochs": 200,
+     "med10": 0.012085290625691414,
+     "converged": false,
+     "escape_epoch": null,
+     "val_miou": 0.49956627324836067,
+     "test_miou": 0.42937606113697413,
+     "best_epoch": 114,
+     "val_iou_by_class": [
+      0.984,
+      0.6834,
+      0.3305,
+      0.0004
+     ]
+    }
+   },
+   "scaling": {
+    "D16_s42": {
+     "res": 16,
+     "seed": 42,
+     "lr": 0.002,
+     "epochs": 200,
+     "med10": 0.0003258576907683164,
+     "converged": true,
+     "escape_epoch": 12,
+     "val_miou": 0.5253786978333317,
+     "test_miou": 0.4624474676457634,
+     "best_epoch": 29,
+     "val_iou_by_class": [
+      0.9994,
+      0.7629,
+      0.3392,
+      0.0
+     ]
+    },
+    "D32_s42": {
+     "res": 32,
+     "seed": 42,
+     "lr": 0.002,
+     "epochs": 200,
+     "med10": 0.00027118565049022436,
+     "converged": true,
+     "escape_epoch": 12,
+     "val_miou": 0.5009167912185951,
+     "test_miou": 0.4458129230127318,
+     "best_epoch": 45,
+     "val_iou_by_class": [
+      0.9996,
+      0.6691,
+      0.3349,
+      0.0
+     ]
+    }
+   }
+  },
+  "A3": {
+   "lr": 0.003,
+   "epochs": 200,
+   "rescue": {
+    "D16_s45": {
+     "res": 16,
+     "seed": 45,
+     "lr": 0.003,
+     "epochs": 200,
+     "med10": 0.011352945119142532,
+     "converged": false,
+     "escape_epoch": null,
+     "val_miou": 0.38269403284974696,
+     "test_miou": 0.38304252748481893,
+     "best_epoch": 70,
+     "val_iou_by_class": [
+      0.9848,
+      0.4661,
+      0.0796,
+      0.0003
+     ]
+    },
+    "D32_s44": {
+     "res": 32,
+     "seed": 44,
+     "lr": 0.003,
+     "epochs": 200,
+     "med10": 0.012124068103730679,
+     "converged": false,
+     "escape_epoch": null,
+     "val_miou": 0.4916387546542779,
+     "test_miou": 0.453440620894774,
+     "best_epoch": 114,
+     "val_iou_by_class": [
+      0.984,
+      0.6413,
+      0.3409,
+      0.0004
+     ]
+    }
+   },
+   "scaling": {
+    "D16_s42": {
+     "res": 16,
+     "seed": 42,
+     "lr": 0.003,
+     "epochs": 200,
+     "med10": 0.00030125681951176375,
+     "converged": true,
+     "escape_epoch": 10,
+     "val_miou": 0.5583439632953469,
+     "test_miou": 0.5304322816902804,
+     "best_epoch": 57,
+     "val_iou_by_class": [
+      0.9996,
+      0.7745,
+      0.4052,
+      0.0541
+     ]
+    },
+    "D32_s42": {
+     "res": 32,
+     "seed": 42,
+     "lr": 0.003,
+     "epochs": 200,
+     "med10": 0.000265060254605487,
+     "converged": true,
+     "escape_epoch": 9,
+     "val_miou": 0.5100359606795593,
+     "test_miou": 0.5092511900901066,
+     "best_epoch": 119,
+     "val_iou_by_class": [
+      0.9996,
+      0.5763,
+      0.3842,
+      0.08
+     ]
+    }
+   }
+  }
+ },
+ "stage_v": {},
+ "stage_f": {}
+}

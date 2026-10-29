@@ -1,0 +1,213 @@
+{
+ "purpose": "diagnostic: per-resolution failure-type rate under one recipe (arm A2)",
+ "arm": {
+  "lr": 0.002,
+  "epochs": 200
+ },
+ "seeds": [
+  42,
+  43,
+  44,
+  45
+ ],
+ "taxonomy": {
+  "foreground_death": "min(val IoU class1, class2) < 0.05",
+  "background_deficit": "val background IoU < 0.9985",
+  "note": "descriptive, applied after stage P; NOT a pre-registered criterion"
+ },
+ "diagnostic_only": "dev seeds 42-45; fresh seeds 46/47/48 untouched; no accuracy claim",
+ "by_resolution": {
+  "D8": {
+   "runs": [
+    {
+     "seed": 42,
+     "med10": 0.0004064869863213971,
+     "converged": true,
+     "escape_epoch": 13,
+     "val_miou": 0.5595,
+     "val_iou_by_class": [
+      0.9973,
+      0.8031,
+      0.4375,
+      0.0
+     ],
+     "failure": "background deficit only"
+    },
+    {
+     "seed": 43,
+     "med10": 0.0004605416761478409,
+     "converged": true,
+     "escape_epoch": 18,
+     "val_miou": 0.5569,
+     "val_iou_by_class": [
+      0.9993,
+      0.7371,
+      0.4911,
+      0.0
+     ],
+     "failure": "clean"
+    },
+    {
+     "seed": 44,
+     "med10": 0.01210432918742299,
+     "converged": false,
+     "escape_epoch": null,
+     "val_miou": 0.4969,
+     "val_iou_by_class": [
+      0.9836,
+      0.5991,
+      0.4016,
+      0.0033
+     ],
+     "failure": "background deficit only"
+    },
+    {
+     "seed": 45,
+     "med10": 0.0003394275554455817,
+     "converged": true,
+     "escape_epoch": 11,
+     "val_miou": 0.5632,
+     "val_iou_by_class": [
+      0.9992,
+      0.7254,
+      0.4727,
+      0.0556
+     ],
+     "failure": "clean"
+    }
+   ],
+   "n": 4,
+   "clean": 2,
+   "background_deficit": 2,
+   "foreground_death": 0
+  },
+  "D16": {
+   "runs": [
+    {
+     "seed": 42,
+     "med10": 0.0003258576907683164,
+     "converged": true,
+     "escape_epoch": 12,
+     "val_miou": 0.5254,
+     "val_iou_by_class": [
+      0.9994,
+      0.7629,
+      0.3392,
+      0.0
+     ],
+     "failure": "clean"
+    },
+    {
+     "seed": 43,
+     "med10": 0.00031739867699798197,
+     "converged": true,
+     "escape_epoch": 18,
+     "val_miou": 0.5459,
+     "val_iou_by_class": [
+      0.9995,
+      0.6534,
+      0.3727,
+      0.1579
+     ],
+     "failure": "clean"
+    },
+    {
+     "seed": 44,
+     "med10": 0.012070711236447096,
+     "converged": false,
+     "escape_epoch": null,
+     "val_miou": 0.4435,
+     "val_iou_by_class": [
+      0.9838,
+      0.6592,
+      0.1292,
+      0.0018
+     ],
+     "failure": "background deficit only"
+    },
+    {
+     "seed": 45,
+     "med10": 0.0010527124395594,
+     "converged": true,
+     "escape_epoch": 138,
+     "val_miou": 0.4805,
+     "val_iou_by_class": [
+      0.9985,
+      0.3361,
+      0.4079,
+      0.1795
+     ],
+     "failure": "clean"
+    }
+   ],
+   "n": 4,
+   "clean": 3,
+   "background_deficit": 1,
+   "foreground_death": 0
+  },
+  "D32": {
+   "runs": [
+    {
+     "seed": 42,
+     "med10": 0.00027118565049022436,
+     "converged": true,
+     "escape_epoch": 12,
+     "val_miou": 0.5009,
+     "val_iou_by_class": [
+      0.9996,
+      0.6691,
+      0.3349,
+      0.0
+     ],
+     "failure": "clean"
+    },
+    {
+     "seed": 43,
+     "med10": 0.00029247022757772356,
+     "converged": true,
+     "escape_epoch": 29,
+     "val_miou": 0.5395,
+     "val_iou_by_class": [
+      0.9997,
+      0.6558,
+      0.3646,
+      0.1379
+     ],
+     "failure": "clean"
+    },
+    {
+     "seed": 44,
+     "med10": 0.012085290625691414,
+     "converged": false,
+     "escape_epoch": null,
+     "val_miou": 0.4996,
+     "val_iou_by_class": [
+      0.984,
+      0.6834,
+      0.3305,
+      0.0004
+     ],
+     "failure": "background deficit only"
+    },
+    {
+     "seed": 45,
+     "med10": 0.0003146437229588628,
+     "converged": true,
+     "escape_epoch": 11,
+     "val_miou": 0.5134,
+     "val_iou_by_class": [
+      0.9996,
+      0.6389,
+      0.3301,
+      0.0851
+     ],
+     "failure": "clean"
+    }
+   ],
+   "n": 4,
+   "clean": 3,
+   "background_deficit": 1,
+   "foreground_death": 0
+  }
+ }
+}

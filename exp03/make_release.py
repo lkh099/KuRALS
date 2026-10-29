@@ -34,6 +34,11 @@ ap.add_argument('--version', default='v01')
 ap.add_argument('--range-bins', type=int, default=None, help='override W (range bins); default: from the run tag / rd config')
 ap.add_argument('--doppler-bins', type=int, default=None, help='override H (Doppler bins); default: from the run tag / rd config')
 ap.add_argument('--dataset-root', default=None, help='override the dataset root for a grid with no preset rd config')
+# The activation-bank size the released network is checked against. 0x8000 is the taped-out NPU8
+# capacity and stays the default; the fixed-1.0x resolution study (exp03/resolution_fixed_w1.py)
+# passes the capacity its own resolution actually requires, because there the bank size is an
+# output of the experiment rather than a constraint on it.
+ap.add_argument('--buf-size', type=lambda v: int(v, 0), default=0x8000)
 a = ap.parse_args()
 
 run_dir = f'{ROOT}/runs/{a.run}'
@@ -66,7 +71,7 @@ import kurals.int8_inference as q8
 from kurals.export_int8 import export_kuralsnet_npu_seg
 from kurals.loaders.dataloaders import KuRALSDataset, SequenceDataset
 from kurals.loaders.dataset import KuRALS_CW
-from kurals.npu_check import check as npu_check
+from kurals.npu_check import check as npu_check, npu_profile
 from kurals.utils.checkpoint_io import load_segmentation_model
 from kurals.utils.functions import normalize, to_natural_doppler
 from kurals.utils.metrics import Evaluator
@@ -179,7 +184,10 @@ test_json = json.load(open(f'{res}/val_doppler_results.json'))['test_metrics']['
 val_json = json.load(open(f'{res}/val_doppler_results.json'))['val_metrics']['range_doppler']
 
 # ---------------------------------------------------------------- legality + metrics
-leg = npu_check(net, H, W, 0x8000)
+leg = npu_check(net, H, W, a.buf_size)
+# What the allocator would need if nothing capped it -- the number the hardware server sizes MEM1/MEM2
+# from. Equal to the bank size above whenever this design fits the taped-out NPU; larger when it does not.
+req = npu_profile(net, H, W, a.buf_size)
 state = json.load(open(f'{ROOT}/pipeline_state.json'))
 # The FP32 parent is whichever B_ run shares this design and seed. Globbing it (instead of
 # templating a hard-coded LR, as this line used to) keeps the tag correct at every resolution and
@@ -201,7 +209,10 @@ metrics = dict(checkpoint=os.path.relpath(ckpt, ROOT), run=a.run, seed=cfg['torc
                                          pixel_agreement_with_qat_sim=agree / total),
                recorded_by_trainer=dict(val_miou=val_json['miou'], test_miou=test_json['miou'], test_iou_by_class=test_json['miou_by_class']),
                weight_bytes=len(wbuf), n_params_conv=int(sum(arrays[k].size for k in arrays if k.endswith('weight_int8'))),
-               macs=leg['macs'], params=leg['params'], peak_activation_bytes=leg['peak_act_bytes'], npu_check=leg, fp32_reference_tag=fp32_tag, weights_sha256=sha)
+               macs=leg['macs'], params=leg['params'], peak_activation_bytes=leg['peak_act_bytes'], npu_check=leg,
+               npu_buffer_required=dict(bank_bytes=req['peak_npu_buffer'], buf1=req['buf1'], buf2=req['buf2'], buf3=req['buf3'],
+                                        checked_against_bytes=a.buf_size, fits=req['feasible']),
+               fp32_reference_tag=fp32_tag, weights_sha256=sha)
 json.dump(metrics, open(f'{out}/metrics.json', 'w'), indent=1, default=str)
 
 shutil.copy(f'{run_dir}/config.json', f'{out}/train_config.json')
@@ -209,7 +220,7 @@ import yaml
 yaml.safe_dump(dict(name=f"{RES_NAME} KuRALSNetNPUSeg {cfg['width_mult']}x (QAT int8)", version=a.version, rd_resolution=RES_NAME,
                     range_bins=W, doppler_bins=H, model='kuralsnet_npu_seg',
                     width_mult=cfg['width_mult'], stem_stride=cfg['stem_stride'], encoder_depth=cfg.get('encoder_depth'), bottleneck_kernel_size=cfg['bottleneck_kernel_size'],
-                    eltwise_act=cfg['eltwise_act'], n_classes=4, norm_type=cfg['norm_type'], npu_buffer_bytes='0x8000', source_run=a.run, seed=cfg['torch_seed']),
+                    eltwise_act=cfg['eltwise_act'], n_classes=4, norm_type=cfg['norm_type'], npu_buffer_bytes=hex(a.buf_size), source_run=a.run, seed=cfg['torch_seed']),
                open(f'{out}/config.yaml', 'w'), sort_keys=False)
 print(json.dumps({k: metrics[k] for k in ('exact_integer_replay', 'qat_float_sim', 'recorded_by_trainer', 'weight_bytes', 'macs')}, indent=1))
 print('npu_check:', json.dumps(leg))

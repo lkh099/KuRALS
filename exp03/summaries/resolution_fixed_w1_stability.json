@@ -1,0 +1,466 @@
+{
+ "experiment": "fixed-1.0x stride-1 RD-resolution study -- STOP CONDITION at stage B",
+ "protocol": "exp03/summaries/resolution_fixed_w1_PROTOCOL.md",
+ "generated_by": "exp03/resolution_stability_and_finals.py",
+ "outcome": "no FP32 learning rate produced four clean development seeds at R64-D16 or R64-D32, so the fresh-seed final comparison was not run at any resolution",
+ "stop_condition_resolutions": [
+  16,
+  32
+ ],
+ "locked": {
+  "8": 0.001
+ },
+ "lowering_the_lr_made_it_worse": true,
+ "criterion": {
+  "c1": "min(IoU_class1, IoU_class2) <= 0.02",
+  "c2": "best val mIoU < trivial + 0.162949",
+  "trivial_miou": {
+   "8": 0.249445,
+   "16": 0.249705,
+   "32": 0.249824
+  },
+  "frozen": "before the lr 3.333e-4 arm was trained",
+  "brittleness": "two runs in the 3.333e-4 arm are within 0.007 of flipping: D16 s44 (UAV IoU 0.0265 vs the 0.02 epsilon) and D16 s45 (val 0.4158 vs the 0.412654 threshold). The criterion is left exactly as declared; the threshold-free counts below are reported alongside it."
+ },
+ "arms": {
+  "8": {
+   "0.001": {
+    "lr": 0.001,
+    "n": 4,
+    "n_degenerate": 0,
+    "degenerate_seeds": [],
+    "seeds": {
+     "42": {
+      "tag": "B_kuralsnet_npu_seg_wm1.0_ss1_R64-D8_lr0.001_s42",
+      "best_epoch": 41,
+      "val_miou": 0.5729,
+      "val_iou_by_class": [
+       0.9992,
+       0.7641,
+       0.5282,
+       0.0
+      ],
+      "c1_min_fg_iou": 0.5282,
+      "c1_triggered": false,
+      "c2_threshold": 0.412394,
+      "c2_triggered": false,
+      "degenerate": false
+     },
+     "43": {
+      "tag": "B_kuralsnet_npu_seg_wm1.0_ss1_R64-D8_lr0.001_s43",
+      "best_epoch": 142,
+      "val_miou": 0.5778,
+      "val_iou_by_class": [
+       0.9993,
+       0.7635,
+       0.4627,
+       0.0857
+      ],
+      "c1_min_fg_iou": 0.4627,
+      "c1_triggered": false,
+      "c2_threshold": 0.412394,
+      "c2_triggered": false,
+      "degenerate": false
+     },
+     "44": {
+      "tag": "B_kuralsnet_npu_seg_wm1.0_ss1_R64-D8_lr0.001_s44",
+      "best_epoch": 45,
+      "val_miou": 0.5627,
+      "val_iou_by_class": [
+       0.9991,
+       0.745,
+       0.5065,
+       0.0
+      ],
+      "c1_min_fg_iou": 0.5065,
+      "c1_triggered": false,
+      "c2_threshold": 0.412394,
+      "c2_triggered": false,
+      "degenerate": false
+     },
+     "45": {
+      "tag": "B_kuralsnet_npu_seg_wm1.0_ss1_R64-D8_lr0.001_s45",
+      "best_epoch": 146,
+      "val_miou": 0.5937,
+      "val_iou_by_class": [
+       0.9994,
+       0.7538,
+       0.4926,
+       0.129
+      ],
+      "c1_min_fg_iou": 0.4926,
+      "c1_triggered": false,
+      "c2_threshold": 0.412394,
+      "c2_triggered": false,
+      "degenerate": false
+     }
+    }
+   }
+  },
+  "16": {
+   "0.001": {
+    "lr": 0.001,
+    "n": 4,
+    "n_degenerate": 1,
+    "degenerate_seeds": [
+     "45"
+    ],
+    "seeds": {
+     "42": {
+      "tag": "B_kuralsnet_npu_seg_wm1.0_ss1_R64-D16_lr0.001_s42",
+      "best_epoch": 121,
+      "val_miou": 0.5647,
+      "val_iou_by_class": [
+       0.9995,
+       0.6818,
+       0.4218,
+       0.1556
+      ],
+      "c1_min_fg_iou": 0.4218,
+      "c1_triggered": false,
+      "c2_threshold": 0.412654,
+      "c2_triggered": false,
+      "degenerate": false
+     },
+     "43": {
+      "tag": "B_kuralsnet_npu_seg_wm1.0_ss1_R64-D16_lr0.001_s43",
+      "best_epoch": 116,
+      "val_miou": 0.4857,
+      "val_iou_by_class": [
+       0.9986,
+       0.4496,
+       0.4351,
+       0.0595
+      ],
+      "c1_min_fg_iou": 0.4351,
+      "c1_triggered": false,
+      "c2_threshold": 0.412654,
+      "c2_triggered": false,
+      "degenerate": false
+     },
+     "44": {
+      "tag": "B_kuralsnet_npu_seg_wm1.0_ss1_R64-D16_lr0.001_s44",
+      "best_epoch": 131,
+      "val_miou": 0.5526,
+      "val_iou_by_class": [
+       0.9976,
+       0.7361,
+       0.4621,
+       0.0145
+      ],
+      "c1_min_fg_iou": 0.4621,
+      "c1_triggered": false,
+      "c2_threshold": 0.412654,
+      "c2_triggered": false,
+      "degenerate": false
+     },
+     "45": {
+      "tag": "B_kuralsnet_npu_seg_wm1.0_ss1_R64-D16_lr0.001_s45",
+      "best_epoch": 70,
+      "val_miou": 0.3274,
+      "val_iou_by_class": [
+       0.9847,
+       0.3249,
+       0.0,
+       0.0
+      ],
+      "c1_min_fg_iou": 0.0,
+      "c1_triggered": true,
+      "c2_threshold": 0.412654,
+      "c2_triggered": true,
+      "degenerate": true
+     }
+    }
+   },
+   "0.000333333": {
+    "lr": 0.0003333333333333333,
+    "n": 4,
+    "n_degenerate": 1,
+    "degenerate_seeds": [
+     "43"
+    ],
+    "seeds": {
+     "42": {
+      "tag": "B_kuralsnet_npu_seg_wm1.0_ss1_R64-D16_lr0.000333333_s42",
+      "best_epoch": 135,
+      "val_miou": 0.5678,
+      "val_iou_by_class": [
+       0.9995,
+       0.6598,
+       0.4453,
+       0.1667
+      ],
+      "c1_min_fg_iou": 0.4453,
+      "c1_triggered": false,
+      "c2_threshold": 0.412654,
+      "c2_triggered": false,
+      "degenerate": false
+     },
+     "43": {
+      "tag": "B_kuralsnet_npu_seg_wm1.0_ss1_R64-D16_lr0.000333333_s43",
+      "best_epoch": 119,
+      "val_miou": 0.2453,
+      "val_iou_by_class": [
+       0.9371,
+       0.0117,
+       0.0299,
+       0.0023
+      ],
+      "c1_min_fg_iou": 0.0117,
+      "c1_triggered": true,
+      "c2_threshold": 0.412654,
+      "c2_triggered": true,
+      "degenerate": true
+     },
+     "44": {
+      "tag": "B_kuralsnet_npu_seg_wm1.0_ss1_R64-D16_lr0.000333333_s44",
+      "best_epoch": 31,
+      "val_miou": 0.338,
+      "val_iou_by_class": [
+       0.9682,
+       0.0265,
+       0.3571,
+       0.0
+      ],
+      "c1_min_fg_iou": 0.0265,
+      "c1_triggered": false,
+      "c2_threshold": 0.412654,
+      "c2_triggered": true,
+      "degenerate": false
+     },
+     "45": {
+      "tag": "B_kuralsnet_npu_seg_wm1.0_ss1_R64-D16_lr0.000333333_s45",
+      "best_epoch": 71,
+      "val_miou": 0.4158,
+      "val_iou_by_class": [
+       0.9849,
+       0.6537,
+       0.0181,
+       0.0067
+      ],
+      "c1_min_fg_iou": 0.0181,
+      "c1_triggered": true,
+      "c2_threshold": 0.412654,
+      "c2_triggered": false,
+      "degenerate": false
+     }
+    }
+   }
+  },
+  "32": {
+   "0.001": {
+    "lr": 0.001,
+    "n": 4,
+    "n_degenerate": 1,
+    "degenerate_seeds": [
+     "44"
+    ],
+    "seeds": {
+     "42": {
+      "tag": "B_kuralsnet_npu_seg_wm1.0_ss1_R64-D32_lr0.001_s42",
+      "best_epoch": 73,
+      "val_miou": 0.5053,
+      "val_iou_by_class": [
+       0.9996,
+       0.6081,
+       0.3886,
+       0.025
+      ],
+      "c1_min_fg_iou": 0.3886,
+      "c1_triggered": false,
+      "c2_threshold": 0.412773,
+      "c2_triggered": false,
+      "degenerate": false
+     },
+     "43": {
+      "tag": "B_kuralsnet_npu_seg_wm1.0_ss1_R64-D32_lr0.001_s43",
+      "best_epoch": 181,
+      "val_miou": 0.4305,
+      "val_iou_by_class": [
+       0.9986,
+       0.223,
+       0.352,
+       0.1481
+      ],
+      "c1_min_fg_iou": 0.223,
+      "c1_triggered": false,
+      "c2_threshold": 0.412773,
+      "c2_triggered": false,
+      "degenerate": false
+     },
+     "44": {
+      "tag": "B_kuralsnet_npu_seg_wm1.0_ss1_R64-D32_lr0.001_s44",
+      "best_epoch": 50,
+      "val_miou": 0.3534,
+      "val_iou_by_class": [
+       0.9683,
+       0.4343,
+       0.0108,
+       0.0004
+      ],
+      "c1_min_fg_iou": 0.0108,
+      "c1_triggered": true,
+      "c2_threshold": 0.412773,
+      "c2_triggered": true,
+      "degenerate": true
+     },
+     "45": {
+      "tag": "B_kuralsnet_npu_seg_wm1.0_ss1_R64-D32_lr0.001_s45",
+      "best_epoch": 96,
+      "val_miou": 0.5264,
+      "val_iou_by_class": [
+       0.9996,
+       0.6343,
+       0.3147,
+       0.1569
+      ],
+      "c1_min_fg_iou": 0.3147,
+      "c1_triggered": false,
+      "c2_threshold": 0.412773,
+      "c2_triggered": false,
+      "degenerate": false
+     }
+    }
+   },
+   "0.000333333": {
+    "lr": 0.0003333333333333333,
+    "n": 4,
+    "n_degenerate": 2,
+    "degenerate_seeds": [
+     "43",
+     "44"
+    ],
+    "seeds": {
+     "42": {
+      "tag": "B_kuralsnet_npu_seg_wm1.0_ss1_R64-D32_lr0.000333333_s42",
+      "best_epoch": 103,
+      "val_miou": 0.4913,
+      "val_iou_by_class": [
+       0.9996,
+       0.6364,
+       0.3091,
+       0.02
+      ],
+      "c1_min_fg_iou": 0.3091,
+      "c1_triggered": false,
+      "c2_threshold": 0.412773,
+      "c2_triggered": false,
+      "degenerate": false
+     },
+     "43": {
+      "tag": "B_kuralsnet_npu_seg_wm1.0_ss1_R64-D32_lr0.000333333_s43",
+      "best_epoch": 73,
+      "val_miou": 0.2826,
+      "val_iou_by_class": [
+       0.9692,
+       0.0145,
+       0.1466,
+       0.0003
+      ],
+      "c1_min_fg_iou": 0.0145,
+      "c1_triggered": true,
+      "c2_threshold": 0.412773,
+      "c2_triggered": true,
+      "degenerate": true
+     },
+     "44": {
+      "tag": "B_kuralsnet_npu_seg_wm1.0_ss1_R64-D32_lr0.000333333_s44",
+      "best_epoch": 45,
+      "val_miou": 0.3301,
+      "val_iou_by_class": [
+       0.9684,
+       0.0151,
+       0.3366,
+       0.0002
+      ],
+      "c1_min_fg_iou": 0.0151,
+      "c1_triggered": true,
+      "c2_threshold": 0.412773,
+      "c2_triggered": true,
+      "degenerate": true
+     },
+     "45": {
+      "tag": "B_kuralsnet_npu_seg_wm1.0_ss1_R64-D32_lr0.000333333_s45",
+      "best_epoch": 117,
+      "val_miou": 0.4938,
+      "val_iou_by_class": [
+       0.9994,
+       0.6308,
+       0.3349,
+       0.0102
+      ],
+      "c1_min_fg_iou": 0.3349,
+      "c1_triggered": false,
+      "c2_threshold": 0.412773,
+      "c2_triggered": false,
+      "degenerate": false
+     }
+    }
+   }
+  }
+ },
+ "threshold_free_read": {
+  "D8_lr0.001": {
+   "n": 4,
+   "degenerate_by_criterion": 0,
+   "criterion_seeds": [],
+   "seeds_with_dead_foreground_channel": [],
+   "n_dead_foreground": 0,
+   "min_background_iou": 0.9991
+  },
+  "D16_lr0.001": {
+   "n": 4,
+   "degenerate_by_criterion": 1,
+   "criterion_seeds": [
+    "45"
+   ],
+   "seeds_with_dead_foreground_channel": [
+    "45"
+   ],
+   "n_dead_foreground": 1,
+   "min_background_iou": 0.9847
+  },
+  "D16_lr0.000333333": {
+   "n": 4,
+   "degenerate_by_criterion": 1,
+   "criterion_seeds": [
+    "43"
+   ],
+   "seeds_with_dead_foreground_channel": [
+    "43",
+    "44",
+    "45"
+   ],
+   "n_dead_foreground": 3,
+   "min_background_iou": 0.9371
+  },
+  "D32_lr0.001": {
+   "n": 4,
+   "degenerate_by_criterion": 1,
+   "criterion_seeds": [
+    "44"
+   ],
+   "seeds_with_dead_foreground_channel": [
+    "44"
+   ],
+   "n_dead_foreground": 1,
+   "min_background_iou": 0.9683
+  },
+  "D32_lr0.000333333": {
+   "n": 4,
+   "degenerate_by_criterion": 2,
+   "criterion_seeds": [
+    "43",
+    "44"
+   ],
+   "seeds_with_dead_foreground_channel": [
+    "43",
+    "44"
+   ],
+   "n_dead_foreground": 2,
+   "min_background_iou": 0.9684
+  }
+ },
+ "mechanistic_signature": "every run with a dead foreground channel also has background IoU <= 0.9849, while every clean run has >= 0.9976 -- a bimodal split with no run in between. The failure is false positives sprayed over background together with the loss of one foreground channel, not an all-background collapse.",
+ "confound": "the foreground fraction of a frame falls from 0.22 % at D8 to 0.07 % at D32, so class imbalance is not constant along the resolution axis under study"
+}

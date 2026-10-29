@@ -1,0 +1,2602 @@
+{
+ "experiment": "fixed-1.0x stride-1 RD-resolution study -- DEVELOPMENT arm (lr 1e-3, seeds 42-45)",
+ "note": "Regenerated after the development driver crashed in its export stage on a path bug in make_release.py (--out resolved against the CWD). All training runs were unaffected. Superseded as the headline by summaries/resolution_fixed_w1_final.json; kept as the record of the recipe as originally specified, including its two non-converged runs.",
+ "protocol": "exp03/summaries/resolution_fixed_w1_PROTOCOL.md",
+ "design": {
+  "params": 31139,
+  "layers": 23,
+  "cutpoint": 3
+ },
+ "qat_lr": {
+  "8": 1e-05,
+  "16": 1e-05,
+  "32": 0.0001
+ },
+ "resolutions": {
+  "8": {
+   "cost": {
+    "resolution": "R64-D8",
+    "doppler_bins": 8,
+    "range_bins": 64,
+    "width_mult": 1.0,
+    "stem_stride": 1,
+    "encoder_depth": 1,
+    "layers": 23,
+    "cutpoint": 3,
+    "params": 31139,
+    "macs_exact": 4952576,
+    "weight_bytes": 34432,
+    "input_shape": [
+     1,
+     8,
+     64
+    ],
+    "input_elements": 512,
+    "peak_activation_bytes": 98304,
+    "mem1_required_bytes": 32768,
+    "mem2_required_bytes": 32768,
+    "mem3_required_bytes": 0,
+    "bank_required_bytes": 32768,
+    "bank_required_kib": 32,
+    "fits_taped_out_bank": true,
+    "taped_out_bank_bytes": 32768,
+    "shape_derived_depths": {
+     "frame_cells": 512,
+     "frame_reuse_cells": 512,
+     "max_layer_out_cells_per_channel": 512,
+     "max_layer_in_cells_per_channel": 512,
+     "partial_sum_cells_per_channel": 512,
+     "line_buffer_cells": 128,
+     "line_buffer_rows": 2,
+     "maxpool_input_row_cells": 64,
+     "maxpool_input_cells": 512,
+     "upsample_input_cells": 128,
+     "upsample_output_cells": 512,
+     "definition": {
+      "cells": "feature-map positions for ONE channel; multiply by the padded channel count for bytes at 1 B/activation",
+      "partial_sum_cells_per_channel": "largest single-layer output map, i.e. the accumulation high-water mark",
+      "line_buffer_cells": "(kernel-1) input rows of the widest layer input",
+      "upsample_output_cells": "cells after the fused 2x nearest upsample of the deepest hop that actually strides",
+      "frame_reuse_cells": "H*W input cells of one RD frame, the frame-reuse working set",
+      "handoff_phase2": "frame_reuse_cells is the handoff's MAX_OBUFF_SZ (512/1024/2048) and upsample_input_cells is its upsample depth (128/256/512)"
+     }
+    },
+    "layer_shapes": [
+     {
+      "name": "stem.dw",
+      "kernel": 3,
+      "stride": 1,
+      "depthwise": false,
+      "in_ch": 1,
+      "in_ch_padded": 8,
+      "out_ch": 1,
+      "out_ch_padded": 8,
+      "in_hw": [
+       8,
+       64
+      ],
+      "out_hw": [
+       8,
+       64
+      ],
+      "in_cells": 512,
+      "out_cells": 512,
+      "in_bytes": 4096,
+      "out_bytes": 4096,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": false
+     },
+     {
+      "name": "stem.pw",
+      "kernel": 1,
+      "stride": 1,
+      "depthwise": false,
+      "in_ch": 1,
+      "in_ch_padded": 8,
+      "out_ch": 16,
+      "out_ch_padded": 16,
+      "in_hw": [
+       8,
+       64
+      ],
+      "out_hw": [
+       8,
+       64
+      ],
+      "in_cells": 512,
+      "out_cells": 512,
+      "in_bytes": 4096,
+      "out_bytes": 8192,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": false
+     },
+     {
+      "name": "stageA.dw",
+      "kernel": 3,
+      "stride": 1,
+      "depthwise": true,
+      "in_ch": 16,
+      "in_ch_padded": 16,
+      "out_ch": 16,
+      "out_ch_padded": 16,
+      "in_hw": [
+       8,
+       64
+      ],
+      "out_hw": [
+       8,
+       64
+      ],
+      "in_cells": 512,
+      "out_cells": 512,
+      "in_bytes": 8192,
+      "out_bytes": 8192,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": false
+     },
+     {
+      "name": "stageA.pw",
+      "kernel": 1,
+      "stride": 1,
+      "depthwise": false,
+      "in_ch": 16,
+      "in_ch_padded": 16,
+      "out_ch": 32,
+      "out_ch_padded": 32,
+      "in_hw": [
+       8,
+       64
+      ],
+      "out_hw": [
+       8,
+       64
+      ],
+      "in_cells": 512,
+      "out_cells": 512,
+      "in_bytes": 8192,
+      "out_bytes": 16384,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": false
+     },
+     {
+      "name": "down1.dw",
+      "kernel": 3,
+      "stride": 1,
+      "depthwise": true,
+      "in_ch": 32,
+      "in_ch_padded": 32,
+      "out_ch": 32,
+      "out_ch_padded": 32,
+      "in_hw": [
+       8,
+       64
+      ],
+      "out_hw": [
+       8,
+       64
+      ],
+      "in_cells": 512,
+      "out_cells": 512,
+      "in_bytes": 16384,
+      "out_bytes": 16384,
+      "concat_operand_bytes": 0,
+      "maxpool_after": true,
+      "upsample_after": false
+     },
+     {
+      "name": "down1.pw",
+      "kernel": 1,
+      "stride": 1,
+      "depthwise": false,
+      "in_ch": 32,
+      "in_ch_padded": 32,
+      "out_ch": 64,
+      "out_ch_padded": 64,
+      "in_hw": [
+       4,
+       32
+      ],
+      "out_hw": [
+       4,
+       32
+      ],
+      "in_cells": 128,
+      "out_cells": 128,
+      "in_bytes": 4096,
+      "out_bytes": 8192,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": false
+     },
+     {
+      "name": "down2.dw",
+      "kernel": 3,
+      "stride": 1,
+      "depthwise": true,
+      "in_ch": 64,
+      "in_ch_padded": 64,
+      "out_ch": 64,
+      "out_ch_padded": 64,
+      "in_hw": [
+       4,
+       32
+      ],
+      "out_hw": [
+       4,
+       32
+      ],
+      "in_cells": 128,
+      "out_cells": 128,
+      "in_bytes": 8192,
+      "out_bytes": 8192,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": false
+     },
+     {
+      "name": "down2.pw",
+      "kernel": 1,
+      "stride": 1,
+      "depthwise": false,
+      "in_ch": 64,
+      "in_ch_padded": 64,
+      "out_ch": 64,
+      "out_ch_padded": 64,
+      "in_hw": [
+       4,
+       32
+      ],
+      "out_hw": [
+       4,
+       32
+      ],
+      "in_cells": 128,
+      "out_cells": 128,
+      "in_bytes": 8192,
+      "out_bytes": 8192,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": false
+     },
+     {
+      "name": "bott_c.dw",
+      "kernel": 3,
+      "stride": 1,
+      "depthwise": true,
+      "in_ch": 64,
+      "in_ch_padded": 64,
+      "out_ch": 64,
+      "out_ch_padded": 64,
+      "in_hw": [
+       4,
+       32
+      ],
+      "out_hw": [
+       4,
+       32
+      ],
+      "in_cells": 128,
+      "out_cells": 128,
+      "in_bytes": 8192,
+      "out_bytes": 8192,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": false
+     },
+     {
+      "name": "bott_c.pw",
+      "kernel": 1,
+      "stride": 1,
+      "depthwise": false,
+      "in_ch": 64,
+      "in_ch_padded": 64,
+      "out_ch": 64,
+      "out_ch_padded": 64,
+      "in_hw": [
+       4,
+       32
+      ],
+      "out_hw": [
+       4,
+       32
+      ],
+      "in_cells": 128,
+      "out_cells": 128,
+      "in_bytes": 8192,
+      "out_bytes": 8192,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": false
+     },
+     {
+      "name": "bott_d1.dw",
+      "kernel": 3,
+      "stride": 1,
+      "depthwise": true,
+      "in_ch": 64,
+      "in_ch_padded": 64,
+      "out_ch": 64,
+      "out_ch_padded": 64,
+      "in_hw": [
+       4,
+       32
+      ],
+      "out_hw": [
+       4,
+       32
+      ],
+      "in_cells": 128,
+      "out_cells": 128,
+      "in_bytes": 8192,
+      "out_bytes": 8192,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": false
+     },
+     {
+      "name": "bott_d1.pw",
+      "kernel": 1,
+      "stride": 1,
+      "depthwise": false,
+      "in_ch": 64,
+      "in_ch_padded": 64,
+      "out_ch": 64,
+      "out_ch_padded": 64,
+      "in_hw": [
+       4,
+       32
+      ],
+      "out_hw": [
+       4,
+       32
+      ],
+      "in_cells": 128,
+      "out_cells": 128,
+      "in_bytes": 8192,
+      "out_bytes": 8192,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": false
+     },
+     {
+      "name": "bott_d2.dw",
+      "kernel": 3,
+      "stride": 1,
+      "depthwise": true,
+      "in_ch": 64,
+      "in_ch_padded": 64,
+      "out_ch": 64,
+      "out_ch_padded": 64,
+      "in_hw": [
+       4,
+       32
+      ],
+      "out_hw": [
+       4,
+       32
+      ],
+      "in_cells": 128,
+      "out_cells": 128,
+      "in_bytes": 8192,
+      "out_bytes": 8192,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": false
+     },
+     {
+      "name": "bott_d2.pw",
+      "kernel": 1,
+      "stride": 1,
+      "depthwise": false,
+      "in_ch": 64,
+      "in_ch_padded": 64,
+      "out_ch": 64,
+      "out_ch_padded": 64,
+      "in_hw": [
+       4,
+       32
+      ],
+      "out_hw": [
+       4,
+       32
+      ],
+      "in_cells": 128,
+      "out_cells": 128,
+      "in_bytes": 8192,
+      "out_bytes": 8192,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": false
+     },
+     {
+      "name": "upconv_b.dw",
+      "kernel": 3,
+      "stride": 1,
+      "depthwise": true,
+      "in_ch": 64,
+      "in_ch_padded": 64,
+      "out_ch": 64,
+      "out_ch_padded": 64,
+      "in_hw": [
+       4,
+       32
+      ],
+      "out_hw": [
+       4,
+       32
+      ],
+      "in_cells": 128,
+      "out_cells": 128,
+      "in_bytes": 8192,
+      "out_bytes": 8192,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": false
+     },
+     {
+      "name": "upconv_b.pw",
+      "kernel": 1,
+      "stride": 1,
+      "depthwise": false,
+      "in_ch": 64,
+      "in_ch_padded": 64,
+      "out_ch": 32,
+      "out_ch_padded": 32,
+      "in_hw": [
+       4,
+       32
+      ],
+      "out_hw": [
+       4,
+       32
+      ],
+      "in_cells": 128,
+      "out_cells": 128,
+      "in_bytes": 8192,
+      "out_bytes": 4096,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": false
+     },
+     {
+      "name": "refine_b.dw",
+      "kernel": 3,
+      "stride": 1,
+      "depthwise": true,
+      "in_ch": 32,
+      "in_ch_padded": 32,
+      "out_ch": 32,
+      "out_ch_padded": 32,
+      "in_hw": [
+       4,
+       32
+      ],
+      "out_hw": [
+       4,
+       32
+      ],
+      "in_cells": 128,
+      "out_cells": 128,
+      "in_bytes": 4096,
+      "out_bytes": 4096,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": false
+     },
+     {
+      "name": "refine_b.pw",
+      "kernel": 1,
+      "stride": 1,
+      "depthwise": false,
+      "in_ch": 32,
+      "in_ch_padded": 32,
+      "out_ch": 32,
+      "out_ch_padded": 32,
+      "in_hw": [
+       4,
+       32
+      ],
+      "out_hw": [
+       4,
+       32
+      ],
+      "in_cells": 128,
+      "out_cells": 128,
+      "in_bytes": 4096,
+      "out_bytes": 4096,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": false
+     },
+     {
+      "name": "upconv_a.dw",
+      "kernel": 3,
+      "stride": 1,
+      "depthwise": true,
+      "in_ch": 32,
+      "in_ch_padded": 32,
+      "out_ch": 32,
+      "out_ch_padded": 32,
+      "in_hw": [
+       4,
+       32
+      ],
+      "out_hw": [
+       4,
+       32
+      ],
+      "in_cells": 128,
+      "out_cells": 128,
+      "in_bytes": 4096,
+      "out_bytes": 4096,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": false
+     },
+     {
+      "name": "upconv_a.pw",
+      "kernel": 1,
+      "stride": 1,
+      "depthwise": false,
+      "in_ch": 32,
+      "in_ch_padded": 32,
+      "out_ch": 32,
+      "out_ch_padded": 32,
+      "in_hw": [
+       4,
+       32
+      ],
+      "out_hw": [
+       4,
+       32
+      ],
+      "in_cells": 128,
+      "out_cells": 128,
+      "in_bytes": 4096,
+      "out_bytes": 4096,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": true
+     },
+     {
+      "name": "dec_a.dw",
+      "kernel": 3,
+      "stride": 1,
+      "depthwise": true,
+      "in_ch": 64,
+      "in_ch_padded": 64,
+      "out_ch": 64,
+      "out_ch_padded": 64,
+      "in_hw": [
+       8,
+       64
+      ],
+      "out_hw": [
+       8,
+       64
+      ],
+      "in_cells": 512,
+      "out_cells": 512,
+      "in_bytes": 32768,
+      "out_bytes": 32768,
+      "concat_operand_bytes": 32768,
+      "maxpool_after": false,
+      "upsample_after": false
+     },
+     {
+      "name": "dec_a.pw",
+      "kernel": 1,
+      "stride": 1,
+      "depthwise": false,
+      "in_ch": 64,
+      "in_ch_padded": 64,
+      "out_ch": 24,
+      "out_ch_padded": 24,
+      "in_hw": [
+       8,
+       64
+      ],
+      "out_hw": [
+       8,
+       64
+      ],
+      "in_cells": 512,
+      "out_cells": 512,
+      "in_bytes": 32768,
+      "out_bytes": 12288,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": false
+     },
+     {
+      "name": "head_out",
+      "kernel": 1,
+      "stride": 1,
+      "depthwise": false,
+      "in_ch": 24,
+      "in_ch_padded": 24,
+      "out_ch": 4,
+      "out_ch_padded": 8,
+      "in_hw": [
+       8,
+       64
+      ],
+      "out_hw": [
+       8,
+       64
+      ],
+      "in_cells": 512,
+      "out_cells": 512,
+      "in_bytes": 12288,
+      "out_bytes": 4096,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": false
+     }
+    ],
+    "handoff_expectation": "confirmed"
+   },
+   "qat_lr_search": {
+    "0.0001": 0.5615006462563156,
+    "3e-05": 0.5556223027450387,
+    "1e-05": 0.5706785877122358
+   },
+   "accuracy": {
+    "fp32_lr": 0.001,
+    "qat_lr": 1e-05,
+    "fp32": {
+     "per_seed": {
+      "43": {
+       "tag": "B_kuralsnet_npu_seg_wm1.0_ss1_R64-D8_lr0.001_s43",
+       "best_epoch": 142,
+       "val_miou": 0.5778124667824943,
+       "test_miou": 0.6371016981772344,
+       "test_dice": 0.7543322810308557,
+       "test_uav_iou": 0.6816143497757847,
+       "test_iou_by_class": [
+        0.9988437249844347,
+        0.6816143497757847,
+        0.48333333333333334,
+        0.38461538461538464
+       ],
+       "test_dice_by_class": [
+        0.9994215230558894,
+        0.8106666616726755,
+        0.6516853882837467,
+        0.5555555511111112
+       ]
+      },
+      "44": {
+       "tag": "B_kuralsnet_npu_seg_wm1.0_ss1_R64-D8_lr0.001_s44",
+       "best_epoch": 45,
+       "val_miou": 0.5626591228710919,
+       "test_miou": 0.5202350285920325,
+       "test_dice": 0.5952102358309951,
+       "test_uav_iou": 0.6854460093896714,
+       "test_iou_by_class": [
+        0.9987549745436759,
+        0.6854460093896714,
+        0.3967391304347826,
+        0.0
+       ],
+       "test_dice_by_class": [
+        0.9993770945083538,
+        0.8133704685379537,
+        0.5680933802776729,
+        0.0
+       ]
+      },
+      "45": {
+       "tag": "B_kuralsnet_npu_seg_wm1.0_ss1_R64-D8_lr0.001_s45",
+       "best_epoch": 146,
+       "val_miou": 0.5937084485052558,
+       "test_miou": 0.5611335627769773,
+       "test_dice": 0.6591479957602525,
+       "test_uav_iou": 0.6866359447004609,
+       "test_iou_by_class": [
+        0.9989104654610139,
+        0.6866359447004609,
+        0.441340782122905,
+        0.11764705882352941
+       ],
+       "test_dice_by_class": [
+        0.9994549307973697,
+        0.8142076452738213,
+        0.6124030958340845,
+        0.2105263111357342
+       ]
+      }
+     },
+     "n": 3,
+     "test_miou_mean": 0.5728234298487481,
+     "test_miou_std": 0.0593038308973454,
+     "test_dice_mean": 0.6695635042073677,
+     "test_dice_std": 0.08007070893470077,
+     "uav_iou_mean": 0.6845654346219723,
+     "uav_iou_std": 0.0026240546560646286,
+     "val_miou_mean": 0.578060012719614,
+     "val_miou_std": 0.015526142947536138
+    },
+    "qat": {
+     "per_seed": {
+      "43": {
+       "tag": "Q_kuralsnet_npu_seg_wm1.0_ss1_R64-D8_qlr1e-05_s43",
+       "best_epoch": 71,
+       "val_miou": 0.5880983041311226,
+       "test_miou": 0.6805240437999464,
+       "test_dice": 0.7929573553083922,
+       "test_uav_iou": 0.6739130434782609,
+       "test_iou_by_class": [
+        0.9987325822709754,
+        0.6739130434782609,
+        0.4340659340659341,
+        0.6153846153846154
+       ],
+       "test_dice_by_class": [
+        0.9993658842939123,
+        0.8051948002126497,
+        0.6053639797202037,
+        0.7619047570068028
+       ]
+      },
+      "44": {
+       "tag": "Q_kuralsnet_npu_seg_wm1.0_ss1_R64-D8_qlr1e-05_s44",
+       "best_epoch": 11,
+       "val_miou": 0.561810123274009,
+       "test_miou": 0.5173174601576136,
+       "test_dice": 0.5923061119322109,
+       "test_uav_iou": 0.6842105263157895,
+       "test_iou_by_class": [
+        0.9986956779510286,
+        0.6842105263157895,
+        0.38636363636363635,
+        0.0
+       ],
+       "test_dice_by_class": [
+        0.9993474083839583,
+        0.8124999950164118,
+        0.5573770443284736,
+        0.0
+       ]
+      },
+      "45": {
+       "tag": "Q_kuralsnet_npu_seg_wm1.0_ss1_R64-D8_qlr1e-05_s45",
+       "best_epoch": 22,
+       "val_miou": 0.5936859758309195,
+       "test_miou": 0.5947218976344464,
+       "test_dice": 0.712225353099051,
+       "test_uav_iou": 0.6413502109704642,
+       "test_iou_by_class": [
+        0.9987844198198866,
+        0.6413502109704642,
+        0.4530386740331492,
+        0.2857142857142857
+       ],
+       "test_dice_by_class": [
+        0.9993918352764902,
+        0.781490997594782,
+        0.6235741395249317,
+        0.44444444000000005
+       ]
+      }
+     },
+     "n": 3,
+     "test_miou_mean": 0.5975211338640022,
+     "test_miou_std": 0.08163929218612863,
+     "test_dice_mean": 0.6991629401132181,
+     "test_dice_std": 0.1009613804474821,
+     "uav_iou_mean": 0.6664912602548382,
+     "uav_iou_std": 0.02237328334279059,
+     "val_miou_mean": 0.5811981344120171,
+     "val_miou_std": 0.017021361598644816
+    },
+    "release_checkpoint": {
+     "seed": 45,
+     "tag": "Q_kuralsnet_npu_seg_wm1.0_ss1_R64-D8_qlr1e-05_s45",
+     "rule": "highest VALIDATION mIoU among the QAT final seeds; test read once at that checkpoint"
+    }
+   },
+   "export": null
+  },
+  "16": {
+   "cost": {
+    "resolution": "R64-D16",
+    "doppler_bins": 16,
+    "range_bins": 64,
+    "width_mult": 1.0,
+    "stem_stride": 1,
+    "encoder_depth": 1,
+    "layers": 23,
+    "cutpoint": 3,
+    "params": 31139,
+    "macs_exact": 9905152,
+    "weight_bytes": 34432,
+    "input_shape": [
+     1,
+     16,
+     64
+    ],
+    "input_elements": 1024,
+    "peak_activation_bytes": 196608,
+    "mem1_required_bytes": 65536,
+    "mem2_required_bytes": 65536,
+    "mem3_required_bytes": 0,
+    "bank_required_bytes": 65536,
+    "bank_required_kib": 64,
+    "fits_taped_out_bank": false,
+    "taped_out_bank_bytes": 32768,
+    "shape_derived_depths": {
+     "frame_cells": 1024,
+     "frame_reuse_cells": 1024,
+     "max_layer_out_cells_per_channel": 1024,
+     "max_layer_in_cells_per_channel": 1024,
+     "partial_sum_cells_per_channel": 1024,
+     "line_buffer_cells": 128,
+     "line_buffer_rows": 2,
+     "maxpool_input_row_cells": 64,
+     "maxpool_input_cells": 1024,
+     "upsample_input_cells": 256,
+     "upsample_output_cells": 1024,
+     "definition": {
+      "cells": "feature-map positions for ONE channel; multiply by the padded channel count for bytes at 1 B/activation",
+      "partial_sum_cells_per_channel": "largest single-layer output map, i.e. the accumulation high-water mark",
+      "line_buffer_cells": "(kernel-1) input rows of the widest layer input",
+      "upsample_output_cells": "cells after the fused 2x nearest upsample of the deepest hop that actually strides",
+      "frame_reuse_cells": "H*W input cells of one RD frame, the frame-reuse working set",
+      "handoff_phase2": "frame_reuse_cells is the handoff's MAX_OBUFF_SZ (512/1024/2048) and upsample_input_cells is its upsample depth (128/256/512)"
+     }
+    },
+    "layer_shapes": [
+     {
+      "name": "stem.dw",
+      "kernel": 3,
+      "stride": 1,
+      "depthwise": false,
+      "in_ch": 1,
+      "in_ch_padded": 8,
+      "out_ch": 1,
+      "out_ch_padded": 8,
+      "in_hw": [
+       16,
+       64
+      ],
+      "out_hw": [
+       16,
+       64
+      ],
+      "in_cells": 1024,
+      "out_cells": 1024,
+      "in_bytes": 8192,
+      "out_bytes": 8192,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": false
+     },
+     {
+      "name": "stem.pw",
+      "kernel": 1,
+      "stride": 1,
+      "depthwise": false,
+      "in_ch": 1,
+      "in_ch_padded": 8,
+      "out_ch": 16,
+      "out_ch_padded": 16,
+      "in_hw": [
+       16,
+       64
+      ],
+      "out_hw": [
+       16,
+       64
+      ],
+      "in_cells": 1024,
+      "out_cells": 1024,
+      "in_bytes": 8192,
+      "out_bytes": 16384,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": false
+     },
+     {
+      "name": "stageA.dw",
+      "kernel": 3,
+      "stride": 1,
+      "depthwise": true,
+      "in_ch": 16,
+      "in_ch_padded": 16,
+      "out_ch": 16,
+      "out_ch_padded": 16,
+      "in_hw": [
+       16,
+       64
+      ],
+      "out_hw": [
+       16,
+       64
+      ],
+      "in_cells": 1024,
+      "out_cells": 1024,
+      "in_bytes": 16384,
+      "out_bytes": 16384,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": false
+     },
+     {
+      "name": "stageA.pw",
+      "kernel": 1,
+      "stride": 1,
+      "depthwise": false,
+      "in_ch": 16,
+      "in_ch_padded": 16,
+      "out_ch": 32,
+      "out_ch_padded": 32,
+      "in_hw": [
+       16,
+       64
+      ],
+      "out_hw": [
+       16,
+       64
+      ],
+      "in_cells": 1024,
+      "out_cells": 1024,
+      "in_bytes": 16384,
+      "out_bytes": 32768,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": false
+     },
+     {
+      "name": "down1.dw",
+      "kernel": 3,
+      "stride": 1,
+      "depthwise": true,
+      "in_ch": 32,
+      "in_ch_padded": 32,
+      "out_ch": 32,
+      "out_ch_padded": 32,
+      "in_hw": [
+       16,
+       64
+      ],
+      "out_hw": [
+       16,
+       64
+      ],
+      "in_cells": 1024,
+      "out_cells": 1024,
+      "in_bytes": 32768,
+      "out_bytes": 32768,
+      "concat_operand_bytes": 0,
+      "maxpool_after": true,
+      "upsample_after": false
+     },
+     {
+      "name": "down1.pw",
+      "kernel": 1,
+      "stride": 1,
+      "depthwise": false,
+      "in_ch": 32,
+      "in_ch_padded": 32,
+      "out_ch": 64,
+      "out_ch_padded": 64,
+      "in_hw": [
+       8,
+       32
+      ],
+      "out_hw": [
+       8,
+       32
+      ],
+      "in_cells": 256,
+      "out_cells": 256,
+      "in_bytes": 8192,
+      "out_bytes": 16384,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": false
+     },
+     {
+      "name": "down2.dw",
+      "kernel": 3,
+      "stride": 1,
+      "depthwise": true,
+      "in_ch": 64,
+      "in_ch_padded": 64,
+      "out_ch": 64,
+      "out_ch_padded": 64,
+      "in_hw": [
+       8,
+       32
+      ],
+      "out_hw": [
+       8,
+       32
+      ],
+      "in_cells": 256,
+      "out_cells": 256,
+      "in_bytes": 16384,
+      "out_bytes": 16384,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": false
+     },
+     {
+      "name": "down2.pw",
+      "kernel": 1,
+      "stride": 1,
+      "depthwise": false,
+      "in_ch": 64,
+      "in_ch_padded": 64,
+      "out_ch": 64,
+      "out_ch_padded": 64,
+      "in_hw": [
+       8,
+       32
+      ],
+      "out_hw": [
+       8,
+       32
+      ],
+      "in_cells": 256,
+      "out_cells": 256,
+      "in_bytes": 16384,
+      "out_bytes": 16384,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": false
+     },
+     {
+      "name": "bott_c.dw",
+      "kernel": 3,
+      "stride": 1,
+      "depthwise": true,
+      "in_ch": 64,
+      "in_ch_padded": 64,
+      "out_ch": 64,
+      "out_ch_padded": 64,
+      "in_hw": [
+       8,
+       32
+      ],
+      "out_hw": [
+       8,
+       32
+      ],
+      "in_cells": 256,
+      "out_cells": 256,
+      "in_bytes": 16384,
+      "out_bytes": 16384,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": false
+     },
+     {
+      "name": "bott_c.pw",
+      "kernel": 1,
+      "stride": 1,
+      "depthwise": false,
+      "in_ch": 64,
+      "in_ch_padded": 64,
+      "out_ch": 64,
+      "out_ch_padded": 64,
+      "in_hw": [
+       8,
+       32
+      ],
+      "out_hw": [
+       8,
+       32
+      ],
+      "in_cells": 256,
+      "out_cells": 256,
+      "in_bytes": 16384,
+      "out_bytes": 16384,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": false
+     },
+     {
+      "name": "bott_d1.dw",
+      "kernel": 3,
+      "stride": 1,
+      "depthwise": true,
+      "in_ch": 64,
+      "in_ch_padded": 64,
+      "out_ch": 64,
+      "out_ch_padded": 64,
+      "in_hw": [
+       8,
+       32
+      ],
+      "out_hw": [
+       8,
+       32
+      ],
+      "in_cells": 256,
+      "out_cells": 256,
+      "in_bytes": 16384,
+      "out_bytes": 16384,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": false
+     },
+     {
+      "name": "bott_d1.pw",
+      "kernel": 1,
+      "stride": 1,
+      "depthwise": false,
+      "in_ch": 64,
+      "in_ch_padded": 64,
+      "out_ch": 64,
+      "out_ch_padded": 64,
+      "in_hw": [
+       8,
+       32
+      ],
+      "out_hw": [
+       8,
+       32
+      ],
+      "in_cells": 256,
+      "out_cells": 256,
+      "in_bytes": 16384,
+      "out_bytes": 16384,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": false
+     },
+     {
+      "name": "bott_d2.dw",
+      "kernel": 3,
+      "stride": 1,
+      "depthwise": true,
+      "in_ch": 64,
+      "in_ch_padded": 64,
+      "out_ch": 64,
+      "out_ch_padded": 64,
+      "in_hw": [
+       8,
+       32
+      ],
+      "out_hw": [
+       8,
+       32
+      ],
+      "in_cells": 256,
+      "out_cells": 256,
+      "in_bytes": 16384,
+      "out_bytes": 16384,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": false
+     },
+     {
+      "name": "bott_d2.pw",
+      "kernel": 1,
+      "stride": 1,
+      "depthwise": false,
+      "in_ch": 64,
+      "in_ch_padded": 64,
+      "out_ch": 64,
+      "out_ch_padded": 64,
+      "in_hw": [
+       8,
+       32
+      ],
+      "out_hw": [
+       8,
+       32
+      ],
+      "in_cells": 256,
+      "out_cells": 256,
+      "in_bytes": 16384,
+      "out_bytes": 16384,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": false
+     },
+     {
+      "name": "upconv_b.dw",
+      "kernel": 3,
+      "stride": 1,
+      "depthwise": true,
+      "in_ch": 64,
+      "in_ch_padded": 64,
+      "out_ch": 64,
+      "out_ch_padded": 64,
+      "in_hw": [
+       8,
+       32
+      ],
+      "out_hw": [
+       8,
+       32
+      ],
+      "in_cells": 256,
+      "out_cells": 256,
+      "in_bytes": 16384,
+      "out_bytes": 16384,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": false
+     },
+     {
+      "name": "upconv_b.pw",
+      "kernel": 1,
+      "stride": 1,
+      "depthwise": false,
+      "in_ch": 64,
+      "in_ch_padded": 64,
+      "out_ch": 32,
+      "out_ch_padded": 32,
+      "in_hw": [
+       8,
+       32
+      ],
+      "out_hw": [
+       8,
+       32
+      ],
+      "in_cells": 256,
+      "out_cells": 256,
+      "in_bytes": 16384,
+      "out_bytes": 8192,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": false
+     },
+     {
+      "name": "refine_b.dw",
+      "kernel": 3,
+      "stride": 1,
+      "depthwise": true,
+      "in_ch": 32,
+      "in_ch_padded": 32,
+      "out_ch": 32,
+      "out_ch_padded": 32,
+      "in_hw": [
+       8,
+       32
+      ],
+      "out_hw": [
+       8,
+       32
+      ],
+      "in_cells": 256,
+      "out_cells": 256,
+      "in_bytes": 8192,
+      "out_bytes": 8192,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": false
+     },
+     {
+      "name": "refine_b.pw",
+      "kernel": 1,
+      "stride": 1,
+      "depthwise": false,
+      "in_ch": 32,
+      "in_ch_padded": 32,
+      "out_ch": 32,
+      "out_ch_padded": 32,
+      "in_hw": [
+       8,
+       32
+      ],
+      "out_hw": [
+       8,
+       32
+      ],
+      "in_cells": 256,
+      "out_cells": 256,
+      "in_bytes": 8192,
+      "out_bytes": 8192,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": false
+     },
+     {
+      "name": "upconv_a.dw",
+      "kernel": 3,
+      "stride": 1,
+      "depthwise": true,
+      "in_ch": 32,
+      "in_ch_padded": 32,
+      "out_ch": 32,
+      "out_ch_padded": 32,
+      "in_hw": [
+       8,
+       32
+      ],
+      "out_hw": [
+       8,
+       32
+      ],
+      "in_cells": 256,
+      "out_cells": 256,
+      "in_bytes": 8192,
+      "out_bytes": 8192,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": false
+     },
+     {
+      "name": "upconv_a.pw",
+      "kernel": 1,
+      "stride": 1,
+      "depthwise": false,
+      "in_ch": 32,
+      "in_ch_padded": 32,
+      "out_ch": 32,
+      "out_ch_padded": 32,
+      "in_hw": [
+       8,
+       32
+      ],
+      "out_hw": [
+       8,
+       32
+      ],
+      "in_cells": 256,
+      "out_cells": 256,
+      "in_bytes": 8192,
+      "out_bytes": 8192,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": true
+     },
+     {
+      "name": "dec_a.dw",
+      "kernel": 3,
+      "stride": 1,
+      "depthwise": true,
+      "in_ch": 64,
+      "in_ch_padded": 64,
+      "out_ch": 64,
+      "out_ch_padded": 64,
+      "in_hw": [
+       16,
+       64
+      ],
+      "out_hw": [
+       16,
+       64
+      ],
+      "in_cells": 1024,
+      "out_cells": 1024,
+      "in_bytes": 65536,
+      "out_bytes": 65536,
+      "concat_operand_bytes": 65536,
+      "maxpool_after": false,
+      "upsample_after": false
+     },
+     {
+      "name": "dec_a.pw",
+      "kernel": 1,
+      "stride": 1,
+      "depthwise": false,
+      "in_ch": 64,
+      "in_ch_padded": 64,
+      "out_ch": 24,
+      "out_ch_padded": 24,
+      "in_hw": [
+       16,
+       64
+      ],
+      "out_hw": [
+       16,
+       64
+      ],
+      "in_cells": 1024,
+      "out_cells": 1024,
+      "in_bytes": 65536,
+      "out_bytes": 24576,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": false
+     },
+     {
+      "name": "head_out",
+      "kernel": 1,
+      "stride": 1,
+      "depthwise": false,
+      "in_ch": 24,
+      "in_ch_padded": 24,
+      "out_ch": 4,
+      "out_ch_padded": 8,
+      "in_hw": [
+       16,
+       64
+      ],
+      "out_hw": [
+       16,
+       64
+      ],
+      "in_cells": 1024,
+      "out_cells": 1024,
+      "in_bytes": 24576,
+      "out_bytes": 8192,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": false
+     }
+    ],
+    "handoff_expectation": "confirmed"
+   },
+   "qat_lr_search": {
+    "0.0001": 0.5667951420734231,
+    "3e-05": 0.5730771217972108,
+    "1e-05": 0.5742163889413219
+   },
+   "accuracy": {
+    "fp32_lr": 0.001,
+    "qat_lr": 1e-05,
+    "fp32": {
+     "per_seed": {
+      "43": {
+       "tag": "B_kuralsnet_npu_seg_wm1.0_ss1_R64-D16_lr0.001_s43",
+       "best_epoch": 116,
+       "val_miou": 0.4857163899469019,
+       "test_miou": 0.472570564858222,
+       "test_dice": 0.5731201216217139,
+       "test_uav_iou": 0.39466666666666667,
+       "test_iou_by_class": [
+        0.9983339010411267,
+        0.39466666666666667,
+        0.4301675977653631,
+        0.06711409395973154
+       ],
+       "test_dice_by_class": [
+        0.9991662509705346,
+        0.565965578478187,
+        0.6015624951220704,
+        0.12578616191606345
+       ]
+      },
+      "44": {
+       "tag": "B_kuralsnet_npu_seg_wm1.0_ss1_R64-D16_lr0.001_s44",
+       "best_epoch": 131,
+       "val_miou": 0.5526052953954181,
+       "test_miou": 0.5067718585127476,
+       "test_dice": 0.5853661641369109,
+       "test_uav_iou": 0.646551724137931,
+       "test_iou_by_class": [
+        0.9974010010958742,
+        0.646551724137931,
+        0.3795180722891566,
+        0.003616636528028933
+       ],
+       "test_dice_by_class": [
+        0.9986988046517961,
+        0.7853403091410598,
+        0.5502183360393585,
+        0.007207206715428977
+       ]
+      },
+      "45": {
+       "tag": "B_kuralsnet_npu_seg_wm1.0_ss1_R64-D16_lr0.001_s45",
+       "best_epoch": 70,
+       "val_miou": 0.32739459087502704,
+       "test_miou": 0.3271931389481632,
+       "test_dice": 0.3704717739830322,
+       "test_uav_iou": 0.32421052631578945,
+       "test_iou_by_class": [
+        0.9845620294768634,
+        0.32421052631578945,
+        0.0,
+        0.0
+       ],
+       "test_dice_by_class": [
+        0.9922209635092505,
+        0.4896661324228784,
+        0.0,
+        0.0
+       ]
+      }
+     },
+     "n": 3,
+     "test_miou_mean": 0.4355118541063776,
+     "test_miou_std": 0.09535271449757246,
+     "test_dice_mean": 0.5096526865805523,
+     "test_dice_std": 0.12068962761119907,
+     "uav_iou_mean": 0.4551429723734624,
+     "uav_iou_std": 0.1694668097808819,
+     "val_miou_mean": 0.45523875873911573,
+     "val_miou_std": 0.11565738134970503
+    },
+    "qat": {
+     "per_seed": {
+      "43": {
+       "tag": "Q_kuralsnet_npu_seg_wm1.0_ss1_R64-D16_qlr1e-05_s43",
+       "best_epoch": 9,
+       "val_miou": 0.5549022748820273,
+       "test_miou": 0.524210431882617,
+       "test_dice": 0.6074277244331411,
+       "test_uav_iou": 0.6540084388185654,
+       "test_iou_by_class": [
+        0.9983820267983754,
+        0.6540084388185654,
+        0.41954022988505746,
+        0.02491103202846975
+       ],
+       "test_dice_by_class": [
+        0.9991903534099907,
+        0.7908163215307425,
+        0.5910931126056812,
+        0.0486111101861497
+       ]
+      },
+      "44": {
+       "tag": "Q_kuralsnet_npu_seg_wm1.0_ss1_R64-D16_qlr1e-05_s44",
+       "best_epoch": 98,
+       "val_miou": 0.5567105537547882,
+       "test_miou": 0.5064345221356272,
+       "test_dice": 0.5860835089838594,
+       "test_uav_iou": 0.6489795918367347,
+       "test_iou_by_class": [
+        0.9972972172444945,
+        0.6489795918367347,
+        0.37037037037037035,
+        0.00909090909090909
+       ],
+       "test_dice_by_class": [
+        0.9986467748922657,
+        0.7871287078743506,
+        0.5405405356425814,
+        0.018018017526239768
+       ]
+      },
+      "45": {
+       "tag": "Q_kuralsnet_npu_seg_wm1.0_ss1_R64-D16_qlr1e-05_s45",
+       "best_epoch": 16,
+       "val_miou": 0.37374607822784045,
+       "test_miou": 0.3758395742948142,
+       "test_dice": 0.45083455646634213,
+       "test_uav_iou": 0.33916849015317285,
+       "test_iou_by_class": [
+        0.984700716089426,
+        0.33916849015317285,
+        0.17920353982300885,
+        0.00028555111364934324
+       ],
+       "test_dice_by_class": [
+        0.9922913849380328,
+        0.5065359433468432,
+        0.3039399584651289,
+        0.000570939115363711
+       ]
+      }
+     },
+     "n": 3,
+     "test_miou_mean": 0.46882817610435273,
+     "test_miou_std": 0.08101947785380363,
+     "test_dice_mean": 0.5481152632944475,
+     "test_dice_std": 0.08492082090994048,
+     "uav_iou_mean": 0.5473855069361576,
+     "uav_iou_std": 0.18033875591229967,
+     "val_miou_mean": 0.495119635621552,
+     "val_miou_std": 0.10511647251465327
+    },
+    "release_checkpoint": {
+     "seed": 44,
+     "tag": "Q_kuralsnet_npu_seg_wm1.0_ss1_R64-D16_qlr1e-05_s44",
+     "rule": "highest VALIDATION mIoU among the QAT final seeds; test read once at that checkpoint"
+    }
+   },
+   "export": null
+  },
+  "32": {
+   "cost": {
+    "resolution": "R64-D32",
+    "doppler_bins": 32,
+    "range_bins": 64,
+    "width_mult": 1.0,
+    "stem_stride": 1,
+    "encoder_depth": 1,
+    "layers": 23,
+    "cutpoint": 3,
+    "params": 31139,
+    "macs_exact": 19810304,
+    "weight_bytes": 34432,
+    "input_shape": [
+     1,
+     32,
+     64
+    ],
+    "input_elements": 2048,
+    "peak_activation_bytes": 393216,
+    "mem1_required_bytes": 131072,
+    "mem2_required_bytes": 131072,
+    "mem3_required_bytes": 0,
+    "bank_required_bytes": 131072,
+    "bank_required_kib": 128,
+    "fits_taped_out_bank": false,
+    "taped_out_bank_bytes": 32768,
+    "shape_derived_depths": {
+     "frame_cells": 2048,
+     "frame_reuse_cells": 2048,
+     "max_layer_out_cells_per_channel": 2048,
+     "max_layer_in_cells_per_channel": 2048,
+     "partial_sum_cells_per_channel": 2048,
+     "line_buffer_cells": 128,
+     "line_buffer_rows": 2,
+     "maxpool_input_row_cells": 64,
+     "maxpool_input_cells": 2048,
+     "upsample_input_cells": 512,
+     "upsample_output_cells": 2048,
+     "definition": {
+      "cells": "feature-map positions for ONE channel; multiply by the padded channel count for bytes at 1 B/activation",
+      "partial_sum_cells_per_channel": "largest single-layer output map, i.e. the accumulation high-water mark",
+      "line_buffer_cells": "(kernel-1) input rows of the widest layer input",
+      "upsample_output_cells": "cells after the fused 2x nearest upsample of the deepest hop that actually strides",
+      "frame_reuse_cells": "H*W input cells of one RD frame, the frame-reuse working set",
+      "handoff_phase2": "frame_reuse_cells is the handoff's MAX_OBUFF_SZ (512/1024/2048) and upsample_input_cells is its upsample depth (128/256/512)"
+     }
+    },
+    "layer_shapes": [
+     {
+      "name": "stem.dw",
+      "kernel": 3,
+      "stride": 1,
+      "depthwise": false,
+      "in_ch": 1,
+      "in_ch_padded": 8,
+      "out_ch": 1,
+      "out_ch_padded": 8,
+      "in_hw": [
+       32,
+       64
+      ],
+      "out_hw": [
+       32,
+       64
+      ],
+      "in_cells": 2048,
+      "out_cells": 2048,
+      "in_bytes": 16384,
+      "out_bytes": 16384,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": false
+     },
+     {
+      "name": "stem.pw",
+      "kernel": 1,
+      "stride": 1,
+      "depthwise": false,
+      "in_ch": 1,
+      "in_ch_padded": 8,
+      "out_ch": 16,
+      "out_ch_padded": 16,
+      "in_hw": [
+       32,
+       64
+      ],
+      "out_hw": [
+       32,
+       64
+      ],
+      "in_cells": 2048,
+      "out_cells": 2048,
+      "in_bytes": 16384,
+      "out_bytes": 32768,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": false
+     },
+     {
+      "name": "stageA.dw",
+      "kernel": 3,
+      "stride": 1,
+      "depthwise": true,
+      "in_ch": 16,
+      "in_ch_padded": 16,
+      "out_ch": 16,
+      "out_ch_padded": 16,
+      "in_hw": [
+       32,
+       64
+      ],
+      "out_hw": [
+       32,
+       64
+      ],
+      "in_cells": 2048,
+      "out_cells": 2048,
+      "in_bytes": 32768,
+      "out_bytes": 32768,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": false
+     },
+     {
+      "name": "stageA.pw",
+      "kernel": 1,
+      "stride": 1,
+      "depthwise": false,
+      "in_ch": 16,
+      "in_ch_padded": 16,
+      "out_ch": 32,
+      "out_ch_padded": 32,
+      "in_hw": [
+       32,
+       64
+      ],
+      "out_hw": [
+       32,
+       64
+      ],
+      "in_cells": 2048,
+      "out_cells": 2048,
+      "in_bytes": 32768,
+      "out_bytes": 65536,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": false
+     },
+     {
+      "name": "down1.dw",
+      "kernel": 3,
+      "stride": 1,
+      "depthwise": true,
+      "in_ch": 32,
+      "in_ch_padded": 32,
+      "out_ch": 32,
+      "out_ch_padded": 32,
+      "in_hw": [
+       32,
+       64
+      ],
+      "out_hw": [
+       32,
+       64
+      ],
+      "in_cells": 2048,
+      "out_cells": 2048,
+      "in_bytes": 65536,
+      "out_bytes": 65536,
+      "concat_operand_bytes": 0,
+      "maxpool_after": true,
+      "upsample_after": false
+     },
+     {
+      "name": "down1.pw",
+      "kernel": 1,
+      "stride": 1,
+      "depthwise": false,
+      "in_ch": 32,
+      "in_ch_padded": 32,
+      "out_ch": 64,
+      "out_ch_padded": 64,
+      "in_hw": [
+       16,
+       32
+      ],
+      "out_hw": [
+       16,
+       32
+      ],
+      "in_cells": 512,
+      "out_cells": 512,
+      "in_bytes": 16384,
+      "out_bytes": 32768,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": false
+     },
+     {
+      "name": "down2.dw",
+      "kernel": 3,
+      "stride": 1,
+      "depthwise": true,
+      "in_ch": 64,
+      "in_ch_padded": 64,
+      "out_ch": 64,
+      "out_ch_padded": 64,
+      "in_hw": [
+       16,
+       32
+      ],
+      "out_hw": [
+       16,
+       32
+      ],
+      "in_cells": 512,
+      "out_cells": 512,
+      "in_bytes": 32768,
+      "out_bytes": 32768,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": false
+     },
+     {
+      "name": "down2.pw",
+      "kernel": 1,
+      "stride": 1,
+      "depthwise": false,
+      "in_ch": 64,
+      "in_ch_padded": 64,
+      "out_ch": 64,
+      "out_ch_padded": 64,
+      "in_hw": [
+       16,
+       32
+      ],
+      "out_hw": [
+       16,
+       32
+      ],
+      "in_cells": 512,
+      "out_cells": 512,
+      "in_bytes": 32768,
+      "out_bytes": 32768,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": false
+     },
+     {
+      "name": "bott_c.dw",
+      "kernel": 3,
+      "stride": 1,
+      "depthwise": true,
+      "in_ch": 64,
+      "in_ch_padded": 64,
+      "out_ch": 64,
+      "out_ch_padded": 64,
+      "in_hw": [
+       16,
+       32
+      ],
+      "out_hw": [
+       16,
+       32
+      ],
+      "in_cells": 512,
+      "out_cells": 512,
+      "in_bytes": 32768,
+      "out_bytes": 32768,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": false
+     },
+     {
+      "name": "bott_c.pw",
+      "kernel": 1,
+      "stride": 1,
+      "depthwise": false,
+      "in_ch": 64,
+      "in_ch_padded": 64,
+      "out_ch": 64,
+      "out_ch_padded": 64,
+      "in_hw": [
+       16,
+       32
+      ],
+      "out_hw": [
+       16,
+       32
+      ],
+      "in_cells": 512,
+      "out_cells": 512,
+      "in_bytes": 32768,
+      "out_bytes": 32768,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": false
+     },
+     {
+      "name": "bott_d1.dw",
+      "kernel": 3,
+      "stride": 1,
+      "depthwise": true,
+      "in_ch": 64,
+      "in_ch_padded": 64,
+      "out_ch": 64,
+      "out_ch_padded": 64,
+      "in_hw": [
+       16,
+       32
+      ],
+      "out_hw": [
+       16,
+       32
+      ],
+      "in_cells": 512,
+      "out_cells": 512,
+      "in_bytes": 32768,
+      "out_bytes": 32768,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": false
+     },
+     {
+      "name": "bott_d1.pw",
+      "kernel": 1,
+      "stride": 1,
+      "depthwise": false,
+      "in_ch": 64,
+      "in_ch_padded": 64,
+      "out_ch": 64,
+      "out_ch_padded": 64,
+      "in_hw": [
+       16,
+       32
+      ],
+      "out_hw": [
+       16,
+       32
+      ],
+      "in_cells": 512,
+      "out_cells": 512,
+      "in_bytes": 32768,
+      "out_bytes": 32768,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": false
+     },
+     {
+      "name": "bott_d2.dw",
+      "kernel": 3,
+      "stride": 1,
+      "depthwise": true,
+      "in_ch": 64,
+      "in_ch_padded": 64,
+      "out_ch": 64,
+      "out_ch_padded": 64,
+      "in_hw": [
+       16,
+       32
+      ],
+      "out_hw": [
+       16,
+       32
+      ],
+      "in_cells": 512,
+      "out_cells": 512,
+      "in_bytes": 32768,
+      "out_bytes": 32768,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": false
+     },
+     {
+      "name": "bott_d2.pw",
+      "kernel": 1,
+      "stride": 1,
+      "depthwise": false,
+      "in_ch": 64,
+      "in_ch_padded": 64,
+      "out_ch": 64,
+      "out_ch_padded": 64,
+      "in_hw": [
+       16,
+       32
+      ],
+      "out_hw": [
+       16,
+       32
+      ],
+      "in_cells": 512,
+      "out_cells": 512,
+      "in_bytes": 32768,
+      "out_bytes": 32768,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": false
+     },
+     {
+      "name": "upconv_b.dw",
+      "kernel": 3,
+      "stride": 1,
+      "depthwise": true,
+      "in_ch": 64,
+      "in_ch_padded": 64,
+      "out_ch": 64,
+      "out_ch_padded": 64,
+      "in_hw": [
+       16,
+       32
+      ],
+      "out_hw": [
+       16,
+       32
+      ],
+      "in_cells": 512,
+      "out_cells": 512,
+      "in_bytes": 32768,
+      "out_bytes": 32768,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": false
+     },
+     {
+      "name": "upconv_b.pw",
+      "kernel": 1,
+      "stride": 1,
+      "depthwise": false,
+      "in_ch": 64,
+      "in_ch_padded": 64,
+      "out_ch": 32,
+      "out_ch_padded": 32,
+      "in_hw": [
+       16,
+       32
+      ],
+      "out_hw": [
+       16,
+       32
+      ],
+      "in_cells": 512,
+      "out_cells": 512,
+      "in_bytes": 32768,
+      "out_bytes": 16384,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": false
+     },
+     {
+      "name": "refine_b.dw",
+      "kernel": 3,
+      "stride": 1,
+      "depthwise": true,
+      "in_ch": 32,
+      "in_ch_padded": 32,
+      "out_ch": 32,
+      "out_ch_padded": 32,
+      "in_hw": [
+       16,
+       32
+      ],
+      "out_hw": [
+       16,
+       32
+      ],
+      "in_cells": 512,
+      "out_cells": 512,
+      "in_bytes": 16384,
+      "out_bytes": 16384,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": false
+     },
+     {
+      "name": "refine_b.pw",
+      "kernel": 1,
+      "stride": 1,
+      "depthwise": false,
+      "in_ch": 32,
+      "in_ch_padded": 32,
+      "out_ch": 32,
+      "out_ch_padded": 32,
+      "in_hw": [
+       16,
+       32
+      ],
+      "out_hw": [
+       16,
+       32
+      ],
+      "in_cells": 512,
+      "out_cells": 512,
+      "in_bytes": 16384,
+      "out_bytes": 16384,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": false
+     },
+     {
+      "name": "upconv_a.dw",
+      "kernel": 3,
+      "stride": 1,
+      "depthwise": true,
+      "in_ch": 32,
+      "in_ch_padded": 32,
+      "out_ch": 32,
+      "out_ch_padded": 32,
+      "in_hw": [
+       16,
+       32
+      ],
+      "out_hw": [
+       16,
+       32
+      ],
+      "in_cells": 512,
+      "out_cells": 512,
+      "in_bytes": 16384,
+      "out_bytes": 16384,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": false
+     },
+     {
+      "name": "upconv_a.pw",
+      "kernel": 1,
+      "stride": 1,
+      "depthwise": false,
+      "in_ch": 32,
+      "in_ch_padded": 32,
+      "out_ch": 32,
+      "out_ch_padded": 32,
+      "in_hw": [
+       16,
+       32
+      ],
+      "out_hw": [
+       16,
+       32
+      ],
+      "in_cells": 512,
+      "out_cells": 512,
+      "in_bytes": 16384,
+      "out_bytes": 16384,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": true
+     },
+     {
+      "name": "dec_a.dw",
+      "kernel": 3,
+      "stride": 1,
+      "depthwise": true,
+      "in_ch": 64,
+      "in_ch_padded": 64,
+      "out_ch": 64,
+      "out_ch_padded": 64,
+      "in_hw": [
+       32,
+       64
+      ],
+      "out_hw": [
+       32,
+       64
+      ],
+      "in_cells": 2048,
+      "out_cells": 2048,
+      "in_bytes": 131072,
+      "out_bytes": 131072,
+      "concat_operand_bytes": 131072,
+      "maxpool_after": false,
+      "upsample_after": false
+     },
+     {
+      "name": "dec_a.pw",
+      "kernel": 1,
+      "stride": 1,
+      "depthwise": false,
+      "in_ch": 64,
+      "in_ch_padded": 64,
+      "out_ch": 24,
+      "out_ch_padded": 24,
+      "in_hw": [
+       32,
+       64
+      ],
+      "out_hw": [
+       32,
+       64
+      ],
+      "in_cells": 2048,
+      "out_cells": 2048,
+      "in_bytes": 131072,
+      "out_bytes": 49152,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": false
+     },
+     {
+      "name": "head_out",
+      "kernel": 1,
+      "stride": 1,
+      "depthwise": false,
+      "in_ch": 24,
+      "in_ch_padded": 24,
+      "out_ch": 4,
+      "out_ch_padded": 8,
+      "in_hw": [
+       32,
+       64
+      ],
+      "out_hw": [
+       32,
+       64
+      ],
+      "in_cells": 2048,
+      "out_cells": 2048,
+      "in_bytes": 49152,
+      "out_bytes": 16384,
+      "concat_operand_bytes": 0,
+      "maxpool_after": false,
+      "upsample_after": false
+     }
+    ],
+    "handoff_expectation": "confirmed"
+   },
+   "qat_lr_search": {
+    "0.0001": 0.520686442016733,
+    "3e-05": 0.5115691786641079,
+    "1e-05": 0.5199266652082094
+   },
+   "accuracy": {
+    "fp32_lr": 0.001,
+    "qat_lr": 0.0001,
+    "fp32": {
+     "per_seed": {
+      "43": {
+       "tag": "B_kuralsnet_npu_seg_wm1.0_ss1_R64-D32_lr0.001_s43",
+       "best_epoch": 181,
+       "val_miou": 0.43045592462099075,
+       "test_miou": 0.408482450106496,
+       "test_dice": 0.5082351695985167,
+       "test_uav_iou": 0.19952210274790919,
+       "test_iou_by_class": [
+        0.9984660022427084,
+        0.19952210274790919,
+        0.29957805907172996,
+        0.13636363636363635
+       ],
+       "test_dice_by_class": [
+        0.9992324073825135,
+        0.33266931899932145,
+        0.4610389560442318,
+        0.23999999596800003
+       ]
+      },
+      "44": {
+       "tag": "B_kuralsnet_npu_seg_wm1.0_ss1_R64-D32_lr0.001_s44",
+       "best_epoch": 50,
+       "val_miou": 0.35343911530656147,
+       "test_miou": 0.3452174368155819,
+       "test_dice": 0.394008006664426,
+       "test_uav_iou": 0.40444444444444444,
+       "test_iou_by_class": [
+        0.9682529402621626,
+        0.40444444444444444,
+        0.008172362555720654,
+        0.0
+       ],
+       "test_dice_by_class": [
+        0.9838704320327756,
+        0.5759493623270009,
+        0.016212232297927495,
+        0.0
+       ]
+      },
+      "45": {
+       "tag": "B_kuralsnet_npu_seg_wm1.0_ss1_R64-D32_lr0.001_s45",
+       "best_epoch": 96,
+       "val_miou": 0.5263796389058814,
+       "test_miou": 0.46240390686729815,
+       "test_dice": 0.5499240221085684,
+       "test_uav_iou": 0.5559322033898305,
+       "test_iou_by_class": [
+        0.999472659719344,
+        0.5559322033898305,
+        0.24875621890547264,
+        0.045454545454545456
+       ],
+       "test_dice_by_class": [
+        0.9997362553193935,
+        0.7145969449201399,
+        0.3984063698582562,
+        0.08695651833648407
+       ]
+      }
+     },
+     "n": 3,
+     "test_miou_mean": 0.4053679312631253,
+     "test_miou_std": 0.05865528417384685,
+     "test_dice_mean": 0.4840557327905037,
+     "test_dice_std": 0.08072134068051047,
+     "uav_iou_mean": 0.38663291686072804,
+     "uav_iou_std": 0.17887140030213114,
+     "val_miou_mean": 0.4367582262778112,
+     "val_miou_std": 0.08664234201781425
+    },
+    "qat": {
+     "per_seed": {
+      "43": {
+       "tag": "Q_kuralsnet_npu_seg_wm1.0_ss1_R64-D32_qlr0.0001_s43",
+       "best_epoch": 94,
+       "val_miou": 0.45896663571791296,
+       "test_miou": 0.47763521378827306,
+       "test_dice": 0.572895672084989,
+       "test_uav_iou": 0.5761589403973509,
+       "test_iou_by_class": [
+        0.9984511788250054,
+        0.5761589403973509,
+        0.09350649350649351,
+        0.24242424242424243
+       ],
+       "test_dice_by_class": [
+        0.9992249842359627,
+        0.7310924319819398,
+        0.17102137460866848,
+        0.39024389751338495
+       ]
+      },
+      "44": {
+       "tag": "Q_kuralsnet_npu_seg_wm1.0_ss1_R64-D32_qlr0.0001_s44",
+       "best_epoch": 80,
+       "val_miou": 0.5489247151823538,
+       "test_miou": 0.5964008069184175,
+       "test_dice": 0.7188499354169008,
+       "test_uav_iou": 0.5794701986754967,
+       "test_iou_by_class": [
+        0.9995077701990015,
+        0.5794701986754967,
+        0.33043478260869563,
+        0.47619047619047616
+       ],
+       "test_dice_by_class": [
+        0.999753819512045,
+        0.7337526155514243,
+        0.49673202115148024,
+        0.6451612854526535
+       ]
+      },
+      "45": {
+       "tag": "Q_kuralsnet_npu_seg_wm1.0_ss1_R64-D32_qlr0.0001_s45",
+       "best_epoch": 4,
+       "val_miou": 0.5367910624001155,
+       "test_miou": 0.5332066179749846,
+       "test_dice": 0.6484063762549639,
+       "test_uav_iou": 0.5946843853820598,
+       "test_iou_by_class": [
+        0.9994096921516814,
+        0.5946843853820598,
+        0.2887323943661972,
+        0.25
+       ],
+       "test_dice_by_class": [
+        0.9997047539342815,
+        0.7458333283375869,
+        0.4480874267799875,
+        0.39999999596800007
+       ]
+      }
+     },
+     "n": 3,
+     "test_miou_mean": 0.5357475462272251,
+     "test_miou_std": 0.05942355395948669,
+     "test_dice_mean": 0.6467173279189512,
+     "test_dice_std": 0.07299179001368099,
+     "uav_iou_mean": 0.5834378414849691,
+     "uav_iou_std": 0.009879507582265312,
+     "val_miou_mean": 0.514894137766794,
+     "val_miou_std": 0.04881311807834735
+    },
+    "release_checkpoint": {
+     "seed": 44,
+     "tag": "Q_kuralsnet_npu_seg_wm1.0_ss1_R64-D32_qlr0.0001_s44",
+     "rule": "highest VALIDATION mIoU among the QAT final seeds; test read once at that checkpoint"
+    }
+   },
+   "export": null
+  }
+ },
+ "paired_vs_d8": {
+  "fp32_D16_minus_D8": {
+   "per_seed": [
+    -0.1645,
+    -0.0135,
+    -0.2339
+   ],
+   "mean": -0.1373,
+   "sd": 0.1127,
+   "n": 3,
+   "t": -2.11,
+   "same_sign": true,
+   "note": "paired by seed; n=3 has almost no power, so a non-zero mean is not evidence of a real gap"
+  },
+  "fp32_D32_minus_D8": {
+   "per_seed": [
+    -0.2286,
+    -0.175,
+    -0.0987
+   ],
+   "mean": -0.1674,
+   "sd": 0.0653,
+   "n": 3,
+   "t": -4.442,
+   "same_sign": true,
+   "note": "paired by seed; n=3 has almost no power, so a non-zero mean is not evidence of a real gap"
+  },
+  "qat_D16_minus_D8": {
+   "per_seed": [
+    -0.1563,
+    -0.0109,
+    -0.2189
+   ],
+   "mean": -0.1287,
+   "sd": 0.1067,
+   "n": 3,
+   "t": -2.089,
+   "same_sign": true,
+   "note": "paired by seed; n=3 has almost no power, so a non-zero mean is not evidence of a real gap"
+  },
+  "qat_D32_minus_D8": {
+   "per_seed": [
+    -0.2029,
+    0.0791,
+    -0.0615
+   ],
+   "mean": -0.0618,
+   "sd": 0.141,
+   "n": 3,
+   "t": -0.759,
+   "same_sign": false,
+   "note": "paired by seed; n=3 has almost no power, so a non-zero mean is not evidence of a real gap"
+  }
+ },
+ "qat_stability": [
+  {
+   "qat_tag": "Q_kuralsnet_npu_seg_wm1.0_ss1_R64-D8_qlr1e-05_s43",
+   "fp32_tag": "B_kuralsnet_npu_seg_wm1.0_ss1_R64-D8_lr0.001_s43",
+   "qat_start": "iteration 0 of the fine-tune (no float warm-up; fine-tune starts from the best FP32 checkpoint)",
+   "lr_at_qat_start": 1e-05,
+   "loss_before_qat_fp32_last20": 0.000392490005469881,
+   "loss_after_qat_start_first3": 0.0014534198174563546,
+   "val_miou_before_qat": 0.5778124667824943,
+   "val_miou_first_after_qat": 0.557398968845914,
+   "val_miou_best_qat": 0.5880983041311226,
+   "val_miou_last_qat": 0.5560258699889261,
+   "observer_freeze_iter": 24000,
+   "bn_freeze": "none: BN is folded from running statistics at every forward; BN not frozen",
+   "fake_quant": "int8 symmetric per-tensor activations (EMA observers), per-channel weights with hardware w_eff=2*w+1, int16 scale/bias, truncating shifts bias_shift in [5,20], act_shift in [0,7]; stem input scale fixed to 1.0 (DSP log code)",
+   "failed": false,
+   "late_collapse": false,
+   "status": "stable"
+  },
+  {
+   "qat_tag": "Q_kuralsnet_npu_seg_wm1.0_ss1_R64-D8_qlr1e-05_s44",
+   "fp32_tag": "B_kuralsnet_npu_seg_wm1.0_ss1_R64-D8_lr0.001_s44",
+   "qat_start": "iteration 0 of the fine-tune (no float warm-up; fine-tune starts from the best FP32 checkpoint)",
+   "lr_at_qat_start": 1e-05,
+   "loss_before_qat_fp32_last20": 0.0003738487503142096,
+   "loss_after_qat_start_first3": 0.0016250849391023319,
+   "val_miou_before_qat": 0.5626591228710919,
+   "val_miou_first_after_qat": 0.5617711794665927,
+   "val_miou_best_qat": 0.561810123274009,
+   "val_miou_last_qat": 0.5507117468728133,
+   "observer_freeze_iter": 24000,
+   "bn_freeze": "none: BN is folded from running statistics at every forward; BN not frozen",
+   "fake_quant": "int8 symmetric per-tensor activations (EMA observers), per-channel weights with hardware w_eff=2*w+1, int16 scale/bias, truncating shifts bias_shift in [5,20], act_shift in [0,7]; stem input scale fixed to 1.0 (DSP log code)",
+   "failed": false,
+   "late_collapse": false,
+   "status": "stable"
+  },
+  {
+   "qat_tag": "Q_kuralsnet_npu_seg_wm1.0_ss1_R64-D8_qlr1e-05_s45",
+   "fp32_tag": "B_kuralsnet_npu_seg_wm1.0_ss1_R64-D8_lr0.001_s45",
+   "qat_start": "iteration 0 of the fine-tune (no float warm-up; fine-tune starts from the best FP32 checkpoint)",
+   "lr_at_qat_start": 1e-05,
+   "loss_before_qat_fp32_last20": 0.00038440235221059993,
+   "loss_after_qat_start_first3": 0.0021130849684899053,
+   "val_miou_before_qat": 0.5937084485052558,
+   "val_miou_first_after_qat": 0.5908581521656684,
+   "val_miou_best_qat": 0.5936859758309195,
+   "val_miou_last_qat": 0.5661307744053546,
+   "observer_freeze_iter": 24000,
+   "bn_freeze": "none: BN is folded from running statistics at every forward; BN not frozen",
+   "fake_quant": "int8 symmetric per-tensor activations (EMA observers), per-channel weights with hardware w_eff=2*w+1, int16 scale/bias, truncating shifts bias_shift in [5,20], act_shift in [0,7]; stem input scale fixed to 1.0 (DSP log code)",
+   "failed": false,
+   "late_collapse": false,
+   "status": "stable"
+  },
+  {
+   "qat_tag": "Q_kuralsnet_npu_seg_wm1.0_ss1_R64-D16_qlr1e-05_s43",
+   "fp32_tag": "B_kuralsnet_npu_seg_wm1.0_ss1_R64-D16_lr0.001_s43",
+   "qat_start": "iteration 0 of the fine-tune (no float warm-up; fine-tune starts from the best FP32 checkpoint)",
+   "lr_at_qat_start": 1e-05,
+   "loss_before_qat_fp32_last20": 0.0010462667822139337,
+   "loss_after_qat_start_first3": 0.0016402451631923516,
+   "val_miou_before_qat": 0.4857163899469019,
+   "val_miou_first_after_qat": 0.5328771410586244,
+   "val_miou_best_qat": 0.5549022748820273,
+   "val_miou_last_qat": 0.542414335595808,
+   "observer_freeze_iter": 24000,
+   "bn_freeze": "none: BN is folded from running statistics at every forward; BN not frozen",
+   "fake_quant": "int8 symmetric per-tensor activations (EMA observers), per-channel weights with hardware w_eff=2*w+1, int16 scale/bias, truncating shifts bias_shift in [5,20], act_shift in [0,7]; stem input scale fixed to 1.0 (DSP log code)",
+   "failed": false,
+   "late_collapse": false,
+   "status": "stable"
+  },
+  {
+   "qat_tag": "Q_kuralsnet_npu_seg_wm1.0_ss1_R64-D16_qlr1e-05_s44",
+   "fp32_tag": "B_kuralsnet_npu_seg_wm1.0_ss1_R64-D16_lr0.001_s44",
+   "qat_start": "iteration 0 of the fine-tune (no float warm-up; fine-tune starts from the best FP32 checkpoint)",
+   "lr_at_qat_start": 1e-05,
+   "loss_before_qat_fp32_last20": 0.0017940833000466227,
+   "loss_after_qat_start_first3": 0.0028583069797605276,
+   "val_miou_before_qat": 0.5526052953954181,
+   "val_miou_first_after_qat": 0.44770505462018695,
+   "val_miou_best_qat": 0.5567105537547882,
+   "val_miou_last_qat": 0.553665860450814,
+   "observer_freeze_iter": 24000,
+   "bn_freeze": "none: BN is folded from running statistics at every forward; BN not frozen",
+   "fake_quant": "int8 symmetric per-tensor activations (EMA observers), per-channel weights with hardware w_eff=2*w+1, int16 scale/bias, truncating shifts bias_shift in [5,20], act_shift in [0,7]; stem input scale fixed to 1.0 (DSP log code)",
+   "failed": false,
+   "late_collapse": false,
+   "status": "stable"
+  },
+  {
+   "qat_tag": "Q_kuralsnet_npu_seg_wm1.0_ss1_R64-D16_qlr1e-05_s45",
+   "fp32_tag": "B_kuralsnet_npu_seg_wm1.0_ss1_R64-D16_lr0.001_s45",
+   "qat_start": "iteration 0 of the fine-tune (no float warm-up; fine-tune starts from the best FP32 checkpoint)",
+   "lr_at_qat_start": 1e-05,
+   "loss_before_qat_fp32_last20": 0.011387052526697517,
+   "loss_after_qat_start_first3": 0.012879605405032635,
+   "val_miou_before_qat": 0.32739459087502704,
+   "val_miou_first_after_qat": 0.34388715331873176,
+   "val_miou_best_qat": 0.37374607822784045,
+   "val_miou_last_qat": 0.3501764682952539,
+   "observer_freeze_iter": 24000,
+   "bn_freeze": "none: BN is folded from running statistics at every forward; BN not frozen",
+   "fake_quant": "int8 symmetric per-tensor activations (EMA observers), per-channel weights with hardware w_eff=2*w+1, int16 scale/bias, truncating shifts bias_shift in [5,20], act_shift in [0,7]; stem input scale fixed to 1.0 (DSP log code)",
+   "failed": false,
+   "late_collapse": false,
+   "status": "stable"
+  },
+  {
+   "qat_tag": "Q_kuralsnet_npu_seg_wm1.0_ss1_R64-D32_qlr0.0001_s43",
+   "fp32_tag": "B_kuralsnet_npu_seg_wm1.0_ss1_R64-D32_lr0.001_s43",
+   "qat_start": "iteration 0 of the fine-tune (no float warm-up; fine-tune starts from the best FP32 checkpoint)",
+   "lr_at_qat_start": 0.0001,
+   "loss_before_qat_fp32_last20": 0.0010344020440243185,
+   "loss_after_qat_start_first3": 0.0015362390937904518,
+   "val_miou_before_qat": 0.43045592462099075,
+   "val_miou_first_after_qat": 0.42979367214986625,
+   "val_miou_best_qat": 0.45896663571791296,
+   "val_miou_last_qat": 0.4534699645792202,
+   "observer_freeze_iter": 24000,
+   "bn_freeze": "none: BN is folded from running statistics at every forward; BN not frozen",
+   "fake_quant": "int8 symmetric per-tensor activations (EMA observers), per-channel weights with hardware w_eff=2*w+1, int16 scale/bias, truncating shifts bias_shift in [5,20], act_shift in [0,7]; stem input scale fixed to 1.0 (DSP log code)",
+   "failed": false,
+   "late_collapse": false,
+   "status": "stable"
+  },
+  {
+   "qat_tag": "Q_kuralsnet_npu_seg_wm1.0_ss1_R64-D32_qlr0.0001_s44",
+   "fp32_tag": "B_kuralsnet_npu_seg_wm1.0_ss1_R64-D32_lr0.001_s44",
+   "qat_start": "iteration 0 of the fine-tune (no float warm-up; fine-tune starts from the best FP32 checkpoint)",
+   "lr_at_qat_start": 0.0001,
+   "loss_before_qat_fp32_last20": 0.023830805066972972,
+   "loss_after_qat_start_first3": 0.02423848832647006,
+   "val_miou_before_qat": 0.35343911530656147,
+   "val_miou_first_after_qat": 0.4015706846947567,
+   "val_miou_best_qat": 0.5489247151823538,
+   "val_miou_last_qat": 0.5372848596446482,
+   "observer_freeze_iter": 24000,
+   "bn_freeze": "none: BN is folded from running statistics at every forward; BN not frozen",
+   "fake_quant": "int8 symmetric per-tensor activations (EMA observers), per-channel weights with hardware w_eff=2*w+1, int16 scale/bias, truncating shifts bias_shift in [5,20], act_shift in [0,7]; stem input scale fixed to 1.0 (DSP log code)",
+   "failed": false,
+   "late_collapse": false,
+   "status": "stable"
+  },
+  {
+   "qat_tag": "Q_kuralsnet_npu_seg_wm1.0_ss1_R64-D32_qlr0.0001_s45",
+   "fp32_tag": "B_kuralsnet_npu_seg_wm1.0_ss1_R64-D32_lr0.001_s45",
+   "qat_start": "iteration 0 of the fine-tune (no float warm-up; fine-tune starts from the best FP32 checkpoint)",
+   "lr_at_qat_start": 0.0001,
+   "loss_before_qat_fp32_last20": 0.0003079216738115065,
+   "loss_after_qat_start_first3": 0.0009994160888406138,
+   "val_miou_before_qat": 0.5263796389058814,
+   "val_miou_first_after_qat": 0.5056687816921027,
+   "val_miou_best_qat": 0.5367910624001155,
+   "val_miou_last_qat": 0.5208196727462526,
+   "observer_freeze_iter": 24000,
+   "bn_freeze": "none: BN is folded from running statistics at every forward; BN not frozen",
+   "fake_quant": "int8 symmetric per-tensor activations (EMA observers), per-channel weights with hardware w_eff=2*w+1, int16 scale/bias, truncating shifts bias_shift in [5,20], act_shift in [0,7]; stem input scale fixed to 1.0 (DSP log code)",
+   "failed": false,
+   "late_collapse": false,
+   "status": "stable"
+  }
+ ]
+}
